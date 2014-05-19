@@ -16,12 +16,15 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Language.Haskell.TokenUtils.TokenUtils
+                     , Language.Haskell.TokenUtils.DualTree
+                     , Language.Haskell.TokenUtils.Types
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7
                      , dual-tree
                      , semigroups
                      , monoid-extras
+                     , mtl
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -36,6 +39,7 @@ test-suite spec
   Hs-Source-Dirs:
     -- src
     test
+  default-language:    Haskell2010
   build-depends:
       base        >= 4.0  && < 4.7
     , Diff >= 0.3.0
