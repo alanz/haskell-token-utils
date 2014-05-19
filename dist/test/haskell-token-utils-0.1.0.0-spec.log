@@ -1,0 +1,7 @@
+Test suite spec: RUNNING...
+
+
+Finished in 0.0001 seconds
+0 examples, 0 failures
+Test suite spec: PASS
+Test suite logged to: dist/test/haskell-token-utils-0.1.0.0-spec.log

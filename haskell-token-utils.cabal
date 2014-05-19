@@ -1,0 +1,55 @@
+name:                haskell-token-utils
+version:             0.1.0.0
+synopsis:            Utilities to tie up tokens to an AST
+-- description:         
+homepage:            https://github.com/alanz/haskell-token-utils
+bug-reports:         https://github.com/alanz/haskell-token-utils/issues
+license:             PublicDomain
+license-file:        LICENSE
+author:              Alan Zimmerman
+maintainer:          alan.zimm@gmail.com
+-- copyright:           
+category:            Development
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Language.Haskell.TokenUtils.TokenUtils
+  -- other-modules:       
+  -- other-extensions:    
+  build-depends:       base >=4.6 && <4.7
+                     , dual-tree
+                     , semigroups
+                     , monoid-extras
+
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+
+test-suite spec
+  type:
+      exitcode-stdio-1.0
+  ghc-options:
+  main-is:
+      Spec.hs
+  Hs-Source-Dirs:
+    -- src
+    test
+  build-depends:
+      base        >= 4.0  && < 4.7
+    , Diff >= 0.3.0
+    , HUnit
+    , QuickCheck  >= 2.5
+    , containers
+    , hspec
+
+    , dual-tree
+    , semigroups
+    , monoid-extras
+
+
+source-repository head
+  type:     git
+  location: https://github.com/alanz/haskell-token-utils.git
+
