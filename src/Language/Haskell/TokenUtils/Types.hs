@@ -12,7 +12,7 @@ module Language.Haskell.TokenUtils.Types
   , Col
   , SimpPos
   , Layout(..)
-  , EndOffset
+  , EndOffset(..)
   , PosToken
   , Located(..)
   , Span(..)
@@ -31,9 +31,15 @@ module Language.Haskell.TokenUtils.Types
   , srcPosToSimpPos
   , addOffsetToToks
   , isComment
+  , ghcLineToForestLine
+  , forestLineToGhcLine
+
+  , HasLoc(..)
+  , IsToken(..)
   ) where
 
 import Control.Exception
+import Data.Bits
 import Data.List
 import Data.Tree
 
@@ -125,7 +131,19 @@ data TokenCache = TK
 
 -- ---------------------------------------------------------------------
 
+class IsToken a where
+  allocTokens :: t -> [a] -> LayoutTree
+
+-- allocTokens :: GHC.ParsedSource -> [PosToken] -> LayoutTree
+
+class HasLoc a where
+  getStartPos :: a -> SimpPos
+  getEndPos :: a -> SimpPos
+
+
 type Token = String
+
+
 
 type PosToken = (Located Token, String)
 
@@ -187,7 +205,7 @@ tokenColEnd (L l _,_) = c
 
 -- ---------------------------------------------------------------------
 
-tokenLen :: PosToken -> Int
+-- tokenLen :: PosToken -> Int
 tokenLen (_,s)     = length s   --check this again! need to handle the tab key.
 
 -- ---------------------------------------------------------------------
@@ -197,7 +215,71 @@ srcPosToSimpPos (sr,c) = (l,c)
   where
     (ForestLine _ _ _ l) = ghcLineToForestLine sr
 
-ghcLineToForestLine = assert False undefined
+-- ---------------------------------------------------------------------
+
+-- A data type for the line entries in a SrcSpan. This has the
+-- following properties
+--
+-- 1. It can be converted to and from the underlying Int in the
+--    original SrcSpan
+-- 2. It allows the insertion of an arbitrary line as the start of a
+--    new SrcSpan
+-- 3. It has an ordering relation, which honours the inserts which
+--    were made.
+-- 4. It can keep track of tokens that have been removed from the main
+--    AST, which can be edited outside of it and then inserted again
+--
+-- This is achieved by adding two fields to the SrcSpan, one to
+-- indicate which AST fragment it is in, and the other to indicate its
+-- insert relationship, encoded as 0 for the original, 1 for the
+-- first, 2 for the second and so on.
+--
+-- This field is converted to and from the original line by being
+-- multiplied by a very large number and added to the original.
+--
+-- The guaranteed max value in Haskell for an Int is 2^29 - 1.
+-- This evaluates to 536,870,911,or 536.8 million.
+--
+-- However, as pointed out on #haskell, the GHC compiler (which this
+-- implemtation explicitly targets) provides the full 32 bits (at
+-- least, can be 64), so we have
+--   maxBound :: Int = 2,147,483,647
+--
+-- Schema:max pos value is 0x7fffffff (31 bits)
+-- 1 bit for LenChanged
+-- 5 bits for tree    : 32 values
+-- 5 bits for version : 32 values
+-- 20 bits for line number: 1048576 values
+
+forestLineMask,forestVersionMask,forestTreeMask,forestLenChangedMask :: Int
+forestLineMask =          0xfffff -- bottom 20 bits
+forestVersionMask    =  0x1f00000 -- next 5 bits
+forestTreeMask       = 0x3e000000 -- next 5 bits
+forestLenChangedMask = 0x40000000 -- top (non-sign) bit
+
+forestVersionShift :: Int
+forestVersionShift = 20
+
+forestTreeShift :: Int
+forestTreeShift    = 25
+
+
+-- | Extract an encoded ForestLine from a GHC line
+ghcLineToForestLine :: Int -> ForestLine
+ghcLineToForestLine l = ForestLine ch tr v l'
+  where
+    l' =  l .&. forestLineMask
+    v  = shiftR (l .&. forestVersionMask) forestVersionShift
+    tr = shiftR (l .&. forestTreeMask)    forestTreeShift
+    ch = (l .&. forestLenChangedMask) /= 0
+
+-- TODO: check that the components are in range
+forestLineToGhcLine :: ForestLine -> Int
+forestLineToGhcLine fl =  (if (flSpanLengthChanged fl) then forestLenChangedMask else 0)
+                        + (shiftL (flTreeSelector  fl) forestTreeShift)
+                        + (shiftL (flInsertVersion fl) forestVersionShift)
+                        + (flLine fl)
+
 
 -- ---------------------------------------------------------------------
 
@@ -232,4 +314,5 @@ getGhcLocEnd (Span _fm to) = to
 
 isComment :: PosToken -> Bool
 isComment = assert False undefined
+
 

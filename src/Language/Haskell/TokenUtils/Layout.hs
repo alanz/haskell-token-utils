@@ -1,7 +1,7 @@
 module Language.Haskell.TokenUtils.Layout
   (
-    allocTokens
-  , retrieveTokens
+    -- allocTokens
+  retrieveTokens
   ) where
 
 
@@ -12,7 +12,7 @@ import Language.Haskell.TokenUtils.Types
 
 -- ---------------------------------------------------------------------
 
-allocTokens = assert False undefined
+-- allocTokens = assert False undefined
 
 -- ---------------------------------------------------------------------
 

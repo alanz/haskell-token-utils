@@ -15,9 +15,11 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Language.Haskell.TokenUtils.TokenUtils
+  exposed-modules:     Language.Haskell.TokenUtils.API
                      , Language.Haskell.TokenUtils.DualTree
                      , Language.Haskell.TokenUtils.Layout
+                     , Language.Haskell.TokenUtils.Pretty
+                     , Language.Haskell.TokenUtils.TokenUtils
                      , Language.Haskell.TokenUtils.Types
   -- other-modules:       
   -- other-extensions:    
@@ -27,6 +29,7 @@ library
                      , semigroups
                      , monoid-extras
                      , mtl
+                     , pretty
 
   hs-source-dirs:      src
   default-language:    Haskell2010

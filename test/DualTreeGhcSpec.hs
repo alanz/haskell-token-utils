@@ -39,7 +39,7 @@ spec = do
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      (invariant layout) `shouldBe` []
+      -- (invariant layout) `shouldBe` []
 
 {-
       (drawTreeCompact layout) `shouldBe`

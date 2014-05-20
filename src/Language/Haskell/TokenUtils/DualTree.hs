@@ -12,6 +12,15 @@ module Language.Haskell.TokenUtils.DualTree (
   , Line(..)
   , Source(..)
   , renderLinesFromLayoutTree
+
+  -- * to enable pretty printing
+  , Alignment(..)
+  , Annot(..)
+  , DeletedSpan(..)
+  , LineOpt(..)
+  , Prim(..)
+  , Transformation(..)
+  , Up(..)
   ) where
 
 -- import qualified GHC        as GHC
@@ -20,18 +29,14 @@ module Language.Haskell.TokenUtils.DualTree (
 import Control.Monad.State
 import qualified Data.Tree as T
 
--- import Language.Haskell.Refact.Utils.LayoutTypes
--- import Language.Haskell.Refact.Utils.LocUtils
--- import Language.Haskell.Refact.Utils.TokenUtils
--- import Language.Haskell.Refact.Utils.TokenUtilsTypes
--- import Language.Haskell.Refact.Utils.TypeSyn
-
 import Language.Haskell.TokenUtils.Types
 
 -- ----------
 import Data.Tree.DUAL
 import Data.Semigroup
 import Data.Monoid.Action
+
+
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Tree.DUAL.Internal as I
 
@@ -115,85 +120,6 @@ instance (Action Transformation Up) where
       s' = NE.map (\(Line r c o ss _f toks) -> (Line r c o ss OGroup toks)) s
 
   act (TAbove _co _bo _p1 _p2 _eo) (UDeleted ds) = UDeleted ds
-
--- ---------------------------------------------------------------------
-{-
-instance GHC.Outputable SourceTree where
-  ppr (I.DUALTree ot)
-      = case getOption ot of
-             Nothing -> GHC.text "Nothing"
-             Just t  -> GHC.ppr t
-
-instance GHC.Outputable (I.DUALTreeU Transformation Up Annot Prim) where
-  ppr (I.DUALTreeU (u,t)) = GHC.parens $ GHC.ppr u GHC.<> GHC.comma GHC.$$ GHC.ppr t
-
-instance GHC.Outputable (I.DUALTreeNE Transformation Up Annot Prim) where
-  ppr (I.Leaf u l)   = GHC.parens $ GHC.hang (GHC.text "Leaf")   1 (GHC.ppr u GHC.$$ GHC.ppr l)
-  ppr (I.LeafU u)    = GHC.parens $ GHC.hang (GHC.text "LeafU")  1 (GHC.ppr u)
-  ppr (I.Concat dts) = GHC.parens $ GHC.hang (GHC.text "Concat") 1 (GHC.ppr dts)
-  ppr (I.Act d t)    = GHC.parens $ GHC.hang (GHC.text "Act")    1 (GHC.ppr d GHC.$$ GHC.ppr t)
-  ppr (I.Annot a t)  = GHC.parens $ GHC.hang (GHC.text "Annot")  1 (GHC.ppr a GHC.$$ GHC.ppr t)
-
-instance GHC.Outputable Prim where
-  ppr (PToks toks) = GHC.parens $ GHC.text "PToks" GHC.<+> GHC.text (show toks)
-  ppr (PDeleted ss pg p) = GHC.parens $ GHC.text "PDeleted" GHC.<+> GHC.ppr ss
-                               GHC.<+> GHC.ppr pg GHC.<+> GHC.ppr p
-
-instance GHC.Outputable Transformation where
-  ppr (TAbove co bo p1 p2 eo)  = GHC.parens $ GHC.text "TAbove" GHC.<+> GHC.ppr co
-                              GHC.<+> GHC.ppr bo
-                              GHC.<+> GHC.ppr p1  GHC.<+> GHC.ppr p2
-                              GHC.<+> GHC.ppr eo
-
-instance GHC.Outputable EndOffset where
-  ppr None = GHC.text "None"
-  ppr (SameLine co)     = GHC.parens $ GHC.text "SameLine" GHC.<+> GHC.ppr co
-  ppr (FromAlignCol rc) = GHC.parens $ GHC.text "FromAlignCol" GHC.<+> GHC.ppr rc
-
-instance GHC.Outputable Annot where
-  ppr (Ann str) = GHC.parens $ GHC.text "Ann" GHC.<+> GHC.text str
-  ppr (ADeleted ss pg p) = GHC.parens $ GHC.text "ADeleted" GHC.<+> GHC.ppr ss
-                           GHC.<+> GHC.ppr pg GHC.<+> GHC.ppr p
-  ppr (ASubtree ss)      = GHC.parens $ GHC.text "ASubtree" GHC.<+> GHC.ppr ss
-
-instance GHC.Outputable Up where
-  ppr (Up ss a ls ds) = GHC.parens $ GHC.hang (GHC.text "Up") 1
-                                 ((GHC.ppr ss GHC.<+> GHC.ppr a) GHC.$$ GHC.ppr ls GHC.$$ GHC.ppr ds)
-  ppr (UDeleted d)  = GHC.parens $ GHC.text "UDeleted" GHC.<+> GHC.ppr d
-
-instance GHC.Outputable Alignment where
-  ppr ANone     = GHC.text "ANone"
-  ppr AVertical = GHC.text "AVertical"
-
-instance GHC.Outputable DeletedSpan where
-  ppr (DeletedSpan ss ro p) = GHC.parens $ (GHC.text "DeletedSpan")
-                               GHC.<+> GHC.ppr ss GHC.<+> GHC.ppr ro
-                               GHC.<+> GHC.ppr p
-
-
-instance GHC.Outputable Span where
-  ppr (Span sp ep) = GHC.parens $ GHC.text "Span" GHC.<+> GHC.ppr sp GHC.<+> GHC.ppr ep
-
-instance (GHC.Outputable a) => GHC.Outputable (NE.NonEmpty a) where
-  -- ppr (x NE.:| xs) = GHC.parens $ GHC.hang (GHC.text "NonEmpty") 1 (GHC.ppr (x:xs))
-  ppr (x NE.:| xs) = (GHC.ppr (x:xs))
-
-instance GHC.Outputable Line where
-  ppr (Line r c o s f str) = GHC.parens $ GHC.text "Line" GHC.<+> GHC.ppr r
-                         GHC.<+> GHC.ppr c GHC.<+> GHC.ppr o
-                         GHC.<+> GHC.ppr s GHC.<+> GHC.ppr f
-                         GHC.<+> GHC.text ("\"" ++ (GHC.showRichTokenStream str) ++ "\"")
-                         -- GHC.<+> GHC.text (show str) -- ++AZ++ debug
-
-instance GHC.Outputable Source where
-  ppr SOriginal = GHC.text "SOriginal"
-  ppr SAdded    = GHC.text "SAdded"
-  ppr SWasAdded = GHC.text "SWasAdded"
-
-instance GHC.Outputable LineOpt where
-  ppr ONone  = GHC.text "ONone"
-  ppr OGroup = GHC.text "OGroup"
--}
 
 -- ---------------------------------------------------------------------
 
