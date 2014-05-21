@@ -1,3 +1,5 @@
+{-# Language FlexibleInstances #-}
+{-# Language TypeSynonymInstances #-}
 module Language.Haskell.TokenUtils.Types
   (
     Entry(..)
@@ -13,10 +15,9 @@ module Language.Haskell.TokenUtils.Types
   , SimpPos
   , Layout(..)
   , EndOffset(..)
-  , PosToken
   , Located(..)
   , Span(..)
-  , showTokenStream
+  , nullSrcSpan
   , TokenLayout
   , LayoutTree
   , forestSpanToSimpPos
@@ -26,16 +27,21 @@ module Language.Haskell.TokenUtils.Types
   , tokenRow
   , tokenCol
   , tokenColEnd
-  , tokenLen
+  , tokenPos
+  , tokenPosEnd
   , increaseSrcSpan
   , srcPosToSimpPos
   , addOffsetToToks
-  , isComment
   , ghcLineToForestLine
   , forestLineToGhcLine
 
-  , HasLoc(..)
   , IsToken(..)
+  , notWhiteSpace
+  , isWhiteSpaceOrIgnored
+  , isIgnored
+  , isIgnoredNonComment
+  , isWhereOrLet
+  , HasLoc(..)
   ) where
 
 import Control.Exception
@@ -48,16 +54,28 @@ import qualified Data.Map as Map
 -- ---------------------------------------------------------------------
 
 -- | An entry in the data structure for a particular srcspan.
-data Entry = Entry !ForestSpan -- The source span contained in this
-                                  -- Node
-                   !Layout     -- How the sub-elements nest
-                   ![PosToken] -- ^The tokens for the SrcSpan if
-                               --  subtree is empty
-           | Deleted !ForestSpan -- The source span has been deleted
-                     RowOffset   -- prior gap in lines
-                     SimpPos     -- ^The gap between this span end and
-                                 --  the start of the next in the
-                                 --  fringe of the tree.
+data Entry a =
+   Entry !ForestSpan -- ^The source span contained in this Node
+         !Layout     -- ^How the sub-elements nest
+         ![a] -- ^The tokens for the SrcSpan if subtree is empty
+ | Deleted !ForestSpan -- ^The source span has been deleted
+           !RowOffset  -- ^prior gap in lines
+           !SimpPos     -- ^The gap between this span end and the
+                        -- start of the next in the fringe of the
+                        -- tree.
+ deriving (Show)
+
+instance (IsToken a) => Eq (Entry a) where
+  (Entry fs1 lay1 toks1) == (Entry fs2 lay2 toks2)
+    = fs1 == fs2 && lay1 == lay2
+   && (show toks1) == (show toks2)
+
+  (Deleted fs1 pg1 lay1) == (Deleted fs2 pg2 lay2)
+    = fs1 == fs2 && pg1 == pg2 && lay1 == lay2
+
+  (==) _ _ = False
+
+
 type RowOffset = Int
 type ColOffset = Int
 type Row       = Int
@@ -106,6 +124,17 @@ instance Show ForestLine where
 
 -- instance Outputable ForestLine where
 --   ppr fl = text (show fl)
+instance Ord ForestLine where
+  -- Use line as the primary comparison, but break any ties with the
+  -- version
+  -- Tree is ignored, as it is only a marker on the topmost element
+  -- Ignore sizeChanged flag, it will only be relevant in the
+  -- invariant check
+  compare (ForestLine _sc1 _ v1 l1) (ForestLine _sc2 _ v2 l2) =
+         if (l1 == l2)
+           then compare v1 v2
+           else compare l1 l2
+
 
 -- ---------------------------------------------------------------------
 
@@ -124,28 +153,68 @@ data TreeId = TId !Int deriving (Eq,Ord,Show)
 mainTid :: TreeId
 mainTid = TId 0
 
-data TokenCache = TK
-  { tkCache :: !(Map.Map TreeId (Tree Entry))
+data TokenCache a = TK
+  { tkCache :: !(Map.Map TreeId (Tree (Entry a)))
   , tkLastTreeId :: !TreeId
   }
 
 -- ---------------------------------------------------------------------
 
-class IsToken a where
-  allocTokens :: t -> [a] -> LayoutTree
+-- |The IsToken class captures the different token type in use. For
+-- GHC it represents the type returned by `GHC.getRichTokenStream`,
+-- namely [(GHC.Located GHC.Token, String)]
+-- For haskell-src-exts this is the reult of `lexTokenStream`, namely `[HSE.Loc HSE.Token]`
+class (Show a) => IsToken a where
+  allocTokens :: t -> [a] -> LayoutTree a
+  getSpan     :: a -> Span
+  putSpan     :: a -> Span -> a
 
--- allocTokens :: GHC.ParsedSource -> [PosToken] -> LayoutTree
+  -- |tokenLen returns the length of the string representation of the
+  -- token, not just the difference in the location, as the string may
+  -- have changed without the position being updated, e.g. in a
+  -- renaming
+  tokenLen    :: a -> Int
+
+  isComment   :: a -> Bool
+
+  -- |Zero-length tokens, as appear in GHC as markers
+  isEmpty     :: a -> Bool
+
+  isDo         :: a -> Bool
+  isElse       :: a -> Bool
+  isIn         :: a -> Bool
+  isLet        :: a -> Bool
+  isOf         :: a -> Bool
+  isThen       :: a -> Bool
+  isWhere      :: a -> Bool
+  isWhiteSpace :: a -> Bool
+
+  showTokenStream :: [a] -> String
+
+-- derived functions
+notWhiteSpace :: (IsToken a) => a -> Bool
+notWhiteSpace tok = not (isWhiteSpace tok)
+
+isWhiteSpaceOrIgnored :: (IsToken a) => a -> Bool
+isWhiteSpaceOrIgnored tok = isWhiteSpace tok || isIgnored tok
+
+-- Tokens that are ignored when allocating tokens to a SrcSpan
+isIgnored :: (IsToken a) => a -> Bool
+isIgnored tok = isThen tok || isElse tok || isIn tok || isDo tok
+
+-- | Tokens that are ignored when determining the first non-comment
+-- token in a span
+isIgnoredNonComment :: (IsToken a) => a -> Bool
+isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
+
+isWhereOrLet :: (IsToken a) => a -> Bool
+isWhereOrLet t = isWhere t || isLet t
+
+
 
 class HasLoc a where
-  getStartPos :: a -> SimpPos
-  getEndPos :: a -> SimpPos
-
-
-type Token = String
-
-
-
-type PosToken = (Located Token, String)
+  getLoc      :: a -> SimpPos
+  getLocEnd   :: a -> SimpPos
 
 data Located e = L Span e
                deriving Show
@@ -153,12 +222,26 @@ data Located e = L Span e
 data Span = Span (Row,Col) (Row,Col)
           deriving (Show,Eq)
 
-showTokenStream :: [PosToken] -> String
-showTokenStream toks = assert False undefined
+nullSrcSpan :: Span
+nullSrcSpan = Span (0,0) (0,0)
 
-data TokenLayout = TL (Tree Entry)
+data TokenLayout a = TL (Tree (Entry a))
 
-type LayoutTree = Tree Entry
+type LayoutTree a = Tree (Entry a)
+
+instance (IsToken t) => Ord (LayoutTree t) where
+  compare (Node a _) (Node b _) = compare (forestSpanFromEntry a) (forestSpanFromEntry b)
+
+-- --------------------------------------------------------------------
+
+forestSpanFromEntry :: Entry a -> ForestSpan
+forestSpanFromEntry (Entry   ss _ _) = ss
+forestSpanFromEntry (Deleted ss _ _) = ss
+
+putForestSpanInEntry :: Entry a -> ForestSpan -> Entry a
+putForestSpanInEntry (Entry   _ss lay toks) ssnew = (Entry ssnew lay toks)
+putForestSpanInEntry (Deleted _ss pg eg) ssnew = (Deleted ssnew pg eg)
+
 
 
 -- ---------------------------------------------------------------------
@@ -176,37 +259,45 @@ forestSpanVersionSet ((ForestLine _ _ sv _,_),(ForestLine _ _ ev _,_)) = sv /= 0
 -- |Get the start and end position of a Tree
 -- treeStartEnd :: Tree Entry -> (SimpPos,SimpPos)
 -- treeStartEnd (Node (Entry sspan _) _) = (getGhcLoc sspan,getGhcLocEnd sspan)
-treeStartEnd :: Tree Entry -> ForestSpan
+treeStartEnd :: Tree (Entry a) -> ForestSpan
 treeStartEnd (Node (Entry sspan _ _) _) = sspan
 treeStartEnd (Node (Deleted sspan _ _) _) = sspan
 
 -- ---------------------------------------------------------------------
 
-groupTokensByLine :: [PosToken] -> [[PosToken]]
+groupTokensByLine :: (IsToken a) => [a] -> [[a]]
 groupTokensByLine xs = groupBy toksOnSameLine xs
 
-toksOnSameLine :: PosToken -> PosToken -> Bool
+toksOnSameLine :: (IsToken a) => a -> a -> Bool
 toksOnSameLine t1 t2 = tokenRow t1 == tokenRow t2
 
 
 -- ---------------------------------------------------------------------
 
-tokenRow :: PosToken -> Int
-tokenRow (L l _,_) = r
-  where (Span (r,_) _) = l
+tokenRow :: (IsToken a) => a -> Int
+tokenRow tok = r
+  where (Span (r,_) _) = getSpan tok
 
-tokenCol :: PosToken -> Int
-tokenCol (L l _,_) = c
-  where (Span (_,c) _) = l
+tokenCol :: (IsToken a) => a -> Int
+tokenCol tok = c
+  where (Span (_,c) _) = getSpan tok
 
-tokenColEnd :: PosToken -> Int
-tokenColEnd (L l _,_) = c
-  where (Span _ (_,c)) = l
+tokenColEnd :: (IsToken a) => a -> Int
+tokenColEnd tok = c
+  where (Span _ (_,c)) = getSpan tok
+
+tokenPos :: IsToken a => a -> SimpPos
+tokenPos tok = startPos
+  where (Span startPos _) = getSpan tok
+
+tokenPosEnd :: IsToken a => a -> SimpPos
+tokenPosEnd tok = endPos
+  where (Span _ endPos) = getSpan tok
 
 -- ---------------------------------------------------------------------
 
 -- tokenLen :: PosToken -> Int
-tokenLen (_,s)     = length s   --check this again! need to handle the tab key.
+-- tokenLen (_,s)     = length s   --check this again! need to handle the tab key.
 
 -- ---------------------------------------------------------------------
 
@@ -284,22 +375,22 @@ forestLineToGhcLine fl =  (if (flSpanLengthChanged fl) then forestLenChangedMask
 -- ---------------------------------------------------------------------
 
 -- |Add a constant line and column offset to a span of tokens
-addOffsetToToks :: SimpPos -> [PosToken] -> [PosToken]
+addOffsetToToks :: (IsToken a) => SimpPos -> [a] -> [a]
 addOffsetToToks (r,c) toks = map (\t -> increaseSrcSpan (r,c) t) toks
 
 -- ---------------------------------------------------------------------
 
-increaseSrcSpan :: SimpPos -> PosToken -> PosToken
-increaseSrcSpan (lineAmount,colAmount) posToken@(lt@(L _l t), s)
-    = (L newL t, s)
+-- |Shift the whole token by the given offset
+increaseSrcSpan :: (IsToken a) => SimpPos -> a -> a
+increaseSrcSpan (lineAmount,colAmount) posToken
+    = putSpan posToken newL
     where
-        newL = Span (startLine, startCol) (endLine, endCol)
+        newL = Span (startLine + lineAmount, startCol + colAmount)
+                    (endLine + lineAmount, endCol + colAmount)
 
-        (startLine, startCol) = add1 $ getLocatedStart lt
-        (endLine, endCol)     = add1 $ getLocatedEnd   lt
+        (Span (startLine, startCol) (endLine,endCol)) = getSpan posToken
 
-        add1 :: (Int, Int) -> (Int, Int)
-        add1 (r,c) = (r+lineAmount,c+colAmount)
+
 
 -- ---------------------------------------------------------------------
 
@@ -312,7 +403,6 @@ getLocatedEnd (L l _) = getGhcLocEnd l
 getGhcLoc    (Span fm _to) = fm
 getGhcLocEnd (Span _fm to) = to
 
-isComment :: PosToken -> Bool
-isComment = assert False undefined
+
 
 

@@ -1,7 +1,7 @@
 module Language.Haskell.TokenUtils.Layout
   (
     -- allocTokens
-  retrieveTokens
+    retrieveTokens
   ) where
 
 
@@ -9,6 +9,7 @@ import Control.Exception
 import Data.Tree
 
 import Language.Haskell.TokenUtils.Types
+-- import Language.Haskell.TokenUtils.Utils
 
 -- ---------------------------------------------------------------------
 
@@ -16,7 +17,7 @@ import Language.Haskell.TokenUtils.Types
 
 -- ---------------------------------------------------------------------
 
-retrieveTokens :: LayoutTree -> [PosToken]
+retrieveTokens :: (IsToken a) => LayoutTree a -> [a]
 retrieveTokens layout = go [] layout
   where
     -- go acc (Group _ _ xs)  = acc ++ (concat $ map (go []) xs)

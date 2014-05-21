@@ -23,23 +23,25 @@ class Outputable a where
 
 -- ---------------------------------------------------------------------
 
-instance Outputable SourceTree where
+instance (IsToken a) => Outputable (SourceTree a) where
   ppr (I.DUALTree ot)
       = case getOption ot of
              Nothing -> text "Nothing"
              Just t  -> ppr t
 
-instance Outputable (I.DUALTreeU Transformation Up Annot Prim) where
+instance (IsToken a) =>
+         Outputable (I.DUALTreeU Transformation (Up a) Annot (Prim a)) where
   ppr (I.DUALTreeU (u,t)) = parens $ ppr u <> comma $$ ppr t
 
-instance Outputable (I.DUALTreeNE Transformation Up Annot Prim) where
+instance (IsToken a) =>
+         Outputable (I.DUALTreeNE Transformation (Up a) Annot (Prim a)) where
   ppr (I.Leaf u l)   = parens $ hang (text "Leaf")   1 (ppr u $$ ppr l)
   ppr (I.LeafU u)    = parens $ hang (text "LeafU")  1 (ppr u)
   ppr (I.Concat dts) = parens $ hang (text "Concat") 1 (ppr dts)
   ppr (I.Act d t)    = parens $ hang (text "Act")    1 (ppr d $$ ppr t)
   ppr (I.Annot a t)  = parens $ hang (text "Annot")  1 (ppr a $$ ppr t)
 
-instance Outputable Prim where
+instance (IsToken a) => Outputable (Prim a) where
   ppr (PToks toks) = parens $ text "PToks" <+> text (show toks)
   ppr (PDeleted ss pg p) = parens $ text "PDeleted" <+> ppr ss
                                <+> ppr pg <+> ppr p
@@ -61,7 +63,7 @@ instance Outputable Annot where
                            <+> ppr pg <+> ppr p
   ppr (ASubtree ss)      = parens $ text "ASubtree" <+> ppr ss
 
-instance Outputable Up where
+instance (IsToken a) => Outputable (Up a) where
   ppr (Up ss a ls ds) = parens $ hang (text "Up") 1
                                  ((ppr ss <+> ppr a) $$ ppr ls $$ ppr ds)
   ppr (UDeleted d)  = parens $ text "UDeleted" <+> ppr d
@@ -83,7 +85,7 @@ instance (Outputable a) => Outputable (NE.NonEmpty a) where
   -- ppr (x NE.:| xs) = parens $ hang (text "NonEmpty") 1 (ppr (x:xs))
   ppr (x NE.:| xs) = (ppr (x:xs))
 
-instance Outputable Line where
+instance (IsToken a) => Outputable (Line a) where
   ppr (Line r c o s f str) = parens $ text "Line" <+> ppr r
                          <+> ppr c <+> ppr o
                          <+> ppr s <+> ppr f

@@ -62,17 +62,17 @@ transform TAdded                       (PToks s) = (PToks s)
 -- subtree, together with a string representation of the subtree. The
 -- origin of the string is the start of the span.
 
-data Up = Up Span Alignment (NE.NonEmpty Line) [DeletedSpan]
-        | UDeleted [DeletedSpan]
+data Up a = Up Span Alignment (NE.NonEmpty (Line a)) [DeletedSpan]
+          | UDeleted [DeletedSpan]
         deriving Show
 
 
-data Line = Line Row Col RowOffset Source LineOpt [PosToken]
+data Line a = Line Row Col RowOffset Source LineOpt [a]
 
 data Alignment = ANone | AVertical
                deriving (Show,Eq)
 
-instance Show Line where
+instance (IsToken a) => Show (Line a) where
   show (Line r c o f s toks) = "(" ++ show r ++ " " ++ show c ++ " " ++ show o
           ++ " " ++ show f
           ++ " " ++ show s ++ "\"" ++ showTokenStream toks ++ "\")"
@@ -93,18 +93,18 @@ data Annot = Ann String
            | ASubtree ForestSpan
            deriving Show
 
-data Prim = PToks [PosToken]
+data Prim a = PToks [a]
           | PDeleted ForestSpan RowOffset SimpPos
           deriving Show
 
 -- | The main data structure for this module
-type SourceTree = DUALTree Transformation Up Annot Prim
+type SourceTree a = DUALTree Transformation (Up a) Annot (Prim a)
 
 
 instance Semigroup Span where
   (Span p1 _p2) <> (Span _q1 q2) = (Span p1 q2)
 
-instance Semigroup Up where
+instance (IsToken a) => Semigroup (Up a) where
   u1 <> u2 = combineUps u1 u2
 
 
@@ -113,7 +113,7 @@ instance Semigroup Transformation where
     =  (TAbove co1 bo1 p11 p22 eo2)
 
 
-instance (Action Transformation Up) where
+instance (Action Transformation (Up a)) where
   act (TAbove _co _bo _p1 _p2 _eo) (Up sspan _a s ds) = (Up sspan a' s' ds)
     where
       a' = AVertical
@@ -123,17 +123,17 @@ instance (Action Transformation Up) where
 
 -- ---------------------------------------------------------------------
 
-renderLinesFromLayoutTree :: LayoutTree -> String
+renderLinesFromLayoutTree :: (IsToken a) => LayoutTree a -> String
 renderLinesFromLayoutTree = renderLines . retrieveLinesFromLayoutTree
 
 -- ---------------------------------------------------------------------
 
-retrieveLinesFromLayoutTree :: LayoutTree -> [Line]
+retrieveLinesFromLayoutTree :: (IsToken a) => LayoutTree a -> [Line a]
 retrieveLinesFromLayoutTree = retrieveLines . layoutTreeToSourceTree
 
 -- ---------------------------------------------------------------------
 
-retrieveLines :: SourceTree -> [Line]
+retrieveLines :: (IsToken a) => SourceTree a -> [Line a]
 retrieveLines srcTree
   = case getU srcTree of
          Nothing -> []
@@ -142,7 +142,7 @@ retrieveLines srcTree
 
 -- ---------------------------------------------------------------------
 
-renderSourceTree :: SourceTree -> String
+renderSourceTree :: (IsToken a) => SourceTree a -> String
 renderSourceTree srcTree = r
   where
     r = case getU srcTree of
@@ -152,7 +152,7 @@ renderSourceTree srcTree = r
 
 -- ---------------------------------------------------------------------
 
-renderLines :: [Line] -> String
+renderLines :: (IsToken a) => [Line a] -> String
 renderLines ls = res
   where
     (_,(_,res)) = runState (go 0 ls) ((1,1),"")
@@ -207,7 +207,7 @@ renderLines ls = res
 
 -- ---------------------------------------------------------------------
 
-layoutTreeToSourceTree :: LayoutTree -> SourceTree
+layoutTreeToSourceTree :: (IsToken a) => LayoutTree a -> SourceTree a
 
 -- TODO: simplify by getting rid of PDeleted, and use leafU
 layoutTreeToSourceTree (T.Node (Deleted sspan  pg eg) _)
@@ -225,7 +225,7 @@ layoutTreeToSourceTree (T.Node (Entry sspan (Above bo p1 p2 eo) [])  ts0)
   where
     subs = (mconcatl $ map layoutTreeToSourceTree ts0)
     co = 0
-    numLines :: [T.Tree Entry] -> Int
+    numLines :: [T.Tree (Entry a)] -> Int
     numLines [] = 0
     numLines sts = l - f
       where
@@ -250,7 +250,7 @@ fs2s ss = Span sp ep
 
 -- ---------------------------------------------------------------------
 
-mkUp :: ForestSpan -> [PosToken] -> Up
+mkUp :: (IsToken a) => ForestSpan -> [a] -> Up a
 mkUp sspan toks = Up ss a ls []
   where
     a = ANone
@@ -264,7 +264,7 @@ mkUp sspan toks = Up ss a ls []
 -- ---------------------------------------------------------------------
 
 -- TODO: What if the toks comprise multiple lines, e.g. in a block comment?
-mkLinesFromToks :: Source -> [PosToken] -> [Line]
+mkLinesFromToks :: (IsToken a) => Source -> [a] -> [Line a]
 mkLinesFromToks _ [] = []
 mkLinesFromToks s toks = [Line ro co 0 s f toks']
   where
@@ -279,7 +279,7 @@ mkLinesFromToks s toks = [Line ro co 0 s f toks']
 -- | Combine the 'U' annotations as they propagate from the leafs to
 -- be cached at the root of the tree. This is the heart of the
 -- DualTree functionality
-combineUps :: Up -> Up -> Up
+combineUps :: (IsToken a) => Up a -> Up a -> Up a
 combineUps (UDeleted d1) (UDeleted d2)  = UDeleted (d1 <> d2)
 
 combineUps (UDeleted d1) (Up sp2 a2 l2 d2) = (Up sp2 a2 l (d1 <> d2))
@@ -315,7 +315,7 @@ combineUps (Up sp1 _a1 l1 d1) (Up sp2 _a2 l2 d2) = (Up (sp1 <> sp2) a l (d1 <> d
 
     -- 'o' takes account of any length change due to tokens being
     --     replaced by others of different length
-    odiff = sum $ map (\t@(_,s) -> (length s) - (tokenColEnd t - tokenCol t)) $ filter (not.isComment) s1
+    odiff = sum $ map (\t -> (tokenLen t) - (tokenColEnd t - tokenCol t)) $ filter (not . isComment) s1
 
     st1 = showTokenStream s1
     st2 = showTokenStream (s1 ++ s2')
@@ -465,7 +465,7 @@ Up2
 
 -- -------------------------------------
 
-adjustForDeleted :: [DeletedSpan] -> NE.NonEmpty Line -> NE.NonEmpty Line
+adjustForDeleted :: (IsToken a) => [DeletedSpan] -> NE.NonEmpty (Line a) -> NE.NonEmpty (Line a)
 adjustForDeleted d1 l2 = l
   where
     deltaL = calcDelta d1
