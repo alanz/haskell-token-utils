@@ -57,14 +57,22 @@ import qualified Data.Map as Map
 
 -- | An entry in the data structure for a particular srcspan.
 data Entry a =
-   Entry !ForestSpan -- ^The source span contained in this Node
-         !Layout     -- ^How the sub-elements nest
-         ![a] -- ^The tokens for the SrcSpan if subtree is empty
- | Deleted !ForestSpan -- ^The source span has been deleted
-           !RowOffset  -- ^prior gap in lines
-           !SimpPos     -- ^The gap between this span end and the
-                        -- start of the next in the fringe of the
-                        -- tree.
+   -- |Entry has
+   --   * the source span contained in this Node
+   --   * how the sub-elements nest
+   --   * the tokens for the SrcSpan if subtree is empty
+   Entry !ForestSpan
+         !Layout
+         ![a]
+ -- |Deleted has
+ --   * the source span has been deleted
+ --   * prior gap in lines
+ --   * the gap between this span end and the
+ --     start of the next in the fringe of the
+ --     tree.
+ | Deleted !ForestSpan
+           !RowOffset
+           !SimpPos
  deriving (Show)
 
 instance (IsToken a) => Eq (Entry a) where
