@@ -1,17 +1,18 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# Language MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
 --
 
 module GhcLayout (
-    initTokenLayout
-  , nullTokenLayout
-  , allocTokens
+  --   initTokenLayout
+  -- , nullTokenLayout
+    ghcAllocTokens
   , retrieveTokens
   , getLoc
 
@@ -32,6 +33,7 @@ import Outputable
 
 import qualified GHC.SYB.Utils as SYB
 
+import Control.Exception
 import Data.List
 import Data.Tree
 
@@ -193,17 +195,17 @@ initTokenLayout parsed toks = (allocTokens parsed toks)
 nullTokenLayout :: TokenLayout
 -- nullTokenLayout = TL (Leaf nullSrcSpan NoChange [])
 nullTokenLayout = TL (Node (Entry (sf nullSrcSpan) NoChange []) [])
-
+-}
 -- ---------------------------------------------------------------------
 
 -- TODO: bring in startEndLocIncComments'
-allocTokens :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree
-allocTokens (GHC.L _l (GHC.HsModule maybeName maybeExports imports decls _warns _haddocks)) toks = r
+ghcAllocTokens :: GHC.ParsedSource-> [GhcPosToken] -> LayoutTree GhcPosToken
+ghcAllocTokens (GHC.L _l (GHC.HsModule maybeName maybeExports imports decls _warns _haddocks)) toks = r
   where
     (nameLayout,toks1) =
       case maybeName of
         Nothing -> ([],toks)
-        Just (GHC.L ln _modName) -> ((makeLeafFromToks s1) ++ [makeLeaf ln NoChange modNameToks],toks')
+        Just (GHC.L ln _modName) -> ((makeLeafFromToks s1) ++ [makeLeaf (g2s ln) NoChange modNameToks],toks')
           where
             (s1,modNameToks,toks') = splitToksIncComments (ghcSpanStartEnd ln) toks
 
@@ -230,7 +232,7 @@ allocTokens (GHC.L _l (GHC.HsModule maybeName maybeExports imports decls _warns 
 
     r' = makeGroup (strip $ nameLayout ++ exportLayout ++ importLayout ++ declLayout ++ (makeLeafFromToks toks4))
     r = addEndOffsets r' toks
--}
+
 -- ---------------------------------------------------------------------
 
 type GhcPosToken = (GHC.Located GHC.Token, String)
@@ -334,7 +336,7 @@ allocForD (acc,toks) (GHC.L l (GHC.ForD (GHC.ForeignImport (GHC.L ln _) typ@(GHC
     (s1,declToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     (s2,nameToks,toks1) = splitToksIncComments (ghcSpanStartEnd ln) declToks
     (s3,typToks,toks2)  = splitToksIncComments (ghcSpanStartEnd lt) toks1
-    nameLayout = [makeLeaf ln NoChange nameToks]
+    nameLayout = [makeLeaf (g2s ln) NoChange nameToks]
     typLayout = allocType typ typToks
     r = acc ++ [makeGroup (strip $ (makeLeafFromToks s1)
                       ++ (makeLeafFromToks s2) ++ nameLayout
@@ -345,7 +347,7 @@ allocForD (acc,toks) (GHC.L l (GHC.ForD (GHC.ForeignExport (GHC.L ln _) typ@(GHC
     (s1,declToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     (s2,nameToks,toks1) = splitToksIncComments (ghcSpanStartEnd ln) declToks
     (s3,typToks,toks2)  = splitToksIncComments (ghcSpanStartEnd lt) toks1
-    nameLayout = [makeLeaf ln NoChange nameToks]
+    nameLayout = [makeLeaf (g2s ln) NoChange nameToks]
     typLayout = allocType typ typToks
     r = acc ++ [makeGroup (strip $ (makeLeafFromToks s1)
                       ++ (makeLeafFromToks s2) ++ nameLayout
@@ -761,9 +763,9 @@ allocParStmtBlock (acc,toks) (GHC.ParStmtBlock stmts _ns _) = (acc ++ r,toks')
 -- ---------------------------------------------------------------------
 
 allocExpr :: GHC.LHsExpr GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
-allocExpr (GHC.L l (GHC.HsVar _)) toks = [makeLeaf l NoChange toks]
-allocExpr (GHC.L l (GHC.HsLit _)) toks = [makeLeaf l NoChange toks]
-allocExpr (GHC.L l (GHC.HsOverLit _)) toks = [makeLeaf l NoChange toks]
+allocExpr (GHC.L l (GHC.HsVar _)) toks = [makeLeaf (g2s l) NoChange toks]
+allocExpr (GHC.L l (GHC.HsLit _)) toks = [makeLeaf (g2s l) NoChange toks]
+allocExpr (GHC.L l (GHC.HsOverLit _)) toks = [makeLeaf (g2s l) NoChange toks]
 allocExpr (GHC.L _ (GHC.HsLam (GHC.MatchGroup matches _))) toks
   = allocMatches matches toks
 #if __GLASGOW_HASKELL__ > 704
@@ -908,7 +910,7 @@ allocExpr (GHC.L l (GHC.RecordCon (GHC.L ln _) _ binds)) toks = r
   where
     (sb,toksExpr,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
     (s1,nameToks,fieldsToks) = splitToksIncComments (ghcSpanStartEnd ln) toksExpr
-    nameLayout = [makeLeaf ln NoChange nameToks]
+    nameLayout = [makeLeaf (g2s ln) NoChange nameToks]
     (bindsLayout,toks3) = allocHsRecordBinds binds fieldsToks
     exprLayout = [makeGroup $ strip $ (makeLeafFromToks s1)
                  ++ nameLayout ++ bindsLayout
@@ -1244,7 +1246,7 @@ endPosForList xs = end
 allocBind :: GHC.LHsBind GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MatchGroup matches _) _ _ _)) toks = r
   where
-    (nameLayout,toks1) = ((makeLeafFromToks s1)++[makeLeaf ln NoChange nameToks],toks')
+    (nameLayout,toks1) = ((makeLeafFromToks s1)++[makeLeaf (g2s ln) NoChange nameToks],toks')
       where
         (s1,nameToks,toks') = splitToksIncComments (ghcSpanStartEnd ln) toks
 
@@ -1252,7 +1254,7 @@ allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MatchGroup matches _) _ _ _)
           where
             (s2,matchToks,toks2') = splitToksForList matches toks1
 
-    r = strip $ [mkGroup l NoChange (strip $ nameLayout ++ matchesLayout)] ++ (makeLeafFromToks toks2)
+    r = strip $ [mkGroup (g2s l) NoChange (strip $ nameLayout ++ matchesLayout)] ++ (makeLeafFromToks toks2)
 
 allocBind (GHC.L l (GHC.PatBind lhs@(GHC.L ll _) grhs@(GHC.GRHSs rhs _) _ _ _)) toks = r
   where
@@ -1330,7 +1332,7 @@ allocSig (GHC.L l (GHC.GenericSig names t@(GHC.L lt _))) toks = r
 allocSig (GHC.L l (GHC.IdSig _i)) toks = r
   where
     (s1,nameToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
-    r = [makeGroup $ (strip $ (makeLeafFromToks s1) ++ [makeLeaf l NoChange nameToks])
+    r = [makeGroup $ (strip $ (makeLeafFromToks s1) ++ [makeLeaf (g2s l) NoChange nameToks])
               ++ (makeLeafFromToks toks') ]
 allocSig (GHC.L l (GHC.FixSig (GHC.FixitySig n@(GHC.L ln _) _fix))) toks = r
   where
@@ -1626,7 +1628,7 @@ allocLocated :: GHC.Located b -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 allocLocated (GHC.L l _) toks = r
   where
     (s1,toks1,s2) = splitToksIncComments (ghcSpanStartEnd l) toks
-    r = strip $ (makeLeafFromToks s1) ++ [makeLeaf l NoChange toks1] ++ (makeLeafFromToks s2)
+    r = strip $ (makeLeafFromToks s1) ++ [makeLeaf (g2s l) NoChange toks1] ++ (makeLeafFromToks s2)
 
 -- ---------------------------------------------------------------------
 
@@ -1976,6 +1978,71 @@ ghcIsEmpty ((GHC.L _ _),               "") = True
 ghcIsEmpty _                               = False
 
 -- ---------------------------------------------------------------------
+
+nullSrcSpan :: GHC.SrcSpan
+nullSrcSpan = GHC.UnhelpfulSpan $ GHC.mkFastString "HaRe nullSrcSpan"
+
+g2s :: GHC.SrcSpan -> Span
+g2s ss = Span (GHC.srcSpanStartLine ss',GHC.srcSpanStartCol ss')
+              (GHC.srcSpanEndLine ss',  GHC.srcSpanEndCol ss')
+  where ss' = case ss of
+          GHC.RealSrcSpan sp -> sp
+          GHC.UnhelpfulSpan str -> error $ "g2 got UnhelpfulSpan" ++ (GHC.unpackFS str)
+
+
+s2g :: Span -> GHC.SrcSpan
+s2g (Span (sr,sc) (er,ec)) = sp
+  where
+    filename = (GHC.mkFastString "f")
+    sp = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
+
+
+-- ---------------------------------------------------------------------
+
+instance Allocatable GHC.ParsedSource GhcPosToken where
+  allocTokens = ghcAllocTokens
+
+instance (IsToken (GHC.Located GHC.Token, String)) where
+  getSpan = ghcGetSpan
+  putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
+
+  tokenLen = ghcTokenLen
+
+  isComment = ghcIsComment
+  isEmpty = ghcIsEmpty
+  isDo = ghcIsDo
+  isElse = ghcIsElse
+  isIn = ghcIsIn
+  isLet = ghcIsLet
+  isOf = ghcIsOf
+  isThen = ghcIsThen
+  isWhere = ghcIsWhere
+
+  showTokenStream = GHC.showRichTokenStream
+
+instance (HasLoc (GHC.Located a)) where
+  getLoc    (GHC.L l _) = start where Span start end = g2s l
+  getLocEnd (GHC.L l _) = end   where Span start end = g2s l
+
+
+-- showToks :: [PosToken] -> String
+showToks toks = show $ map (\(t@(GHC.L _ tok),s) ->
+                 ((getLocatedStart t, getLocatedEnd t),tok,s)) toks
+
+instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
+  show t@(GHC.L _l tok) = show ((getLocatedStart t, getLocatedEnd t),tok)
+
+-- ---------------------------------------------------------------------
+
+ghcGetSpan :: GhcPosToken -> Span
+ghcGetSpan (GHC.L l _,_) = g2s l
+
+ghcPutSpan :: (GHC.Located a) -> Span -> (GHC.Located a)
+ghcPutSpan (GHC.L _l x) s = (GHC.L l' x)
+  where
+    l' = s2g s
+
+-- ---------------------------------------------------------------------
 -- This section is horrible because there is no Eq instance for
 -- GHC.Token
 
@@ -2013,6 +2080,18 @@ ghcIsIn    ((GHC.L _ t),_s) = case t of
                       GHC.ITin -> True
                       _        -> False
 
+ghcIsComment :: GhcPosToken -> Bool
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentNext _)),_s)  = True
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentPrev _)),_s)  = True
+ghcIsComment ((GHC.L _ (GHC.ITdocCommentNamed _)),_s) = True
+ghcIsComment ((GHC.L _ (GHC.ITdocSection _ _)),_s)    = True
+ghcIsComment ((GHC.L _ (GHC.ITdocOptions _)),_s)      = True
+ghcIsComment ((GHC.L _ (GHC.ITdocOptionsOld _)),_s)   = True
+ghcIsComment ((GHC.L _ (GHC.ITlineComment _)),_s)     = True
+ghcIsComment ((GHC.L _ (GHC.ITblockComment _)),_s)    = True
+ghcIsComment ((GHC.L _ _),_s)                         = False
+
+
 -- ---------------------------------------------------------------------
 {-
 isWhiteSpace :: GhcPosToken -> Bool
@@ -2034,9 +2113,6 @@ isIgnoredNonComment :: GhcPosToken -> Bool
 isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
 -}
 
--- ---------------------------------------------------------------------
 
-nullSrcSpan :: GHC.SrcSpan
-nullSrcSpan = GHC.UnhelpfulSpan $ GHC.mkFastString "HaRe nullSrcSpan"
-
+ghcTokenLen (_,s) = length s
 

@@ -1,4 +1,5 @@
 {-# Language FlexibleInstances #-}
+{-# Language MultiParamTypeClasses #-}
 {-# Language TypeSynonymInstances #-}
 module Language.Haskell.TokenUtils.Types
   (
@@ -42,6 +43,7 @@ module Language.Haskell.TokenUtils.Types
   , isIgnoredNonComment
   , isWhereOrLet
   , HasLoc(..)
+  , Allocatable(..)
   ) where
 
 import Control.Exception
@@ -160,12 +162,15 @@ data TokenCache a = TK
 
 -- ---------------------------------------------------------------------
 
+class Allocatable b a where
+  allocTokens :: b -> [a] -> LayoutTree a
+
+
 -- |The IsToken class captures the different token type in use. For
 -- GHC it represents the type returned by `GHC.getRichTokenStream`,
 -- namely [(GHC.Located GHC.Token, String)]
 -- For haskell-src-exts this is the reult of `lexTokenStream`, namely `[HSE.Loc HSE.Token]`
 class (Show a) => IsToken a where
-  allocTokens :: t -> [a] -> LayoutTree a
   getSpan     :: a -> Span
   putSpan     :: a -> Span -> a
 
@@ -187,11 +192,13 @@ class (Show a) => IsToken a where
   isOf         :: a -> Bool
   isThen       :: a -> Bool
   isWhere      :: a -> Bool
-  isWhiteSpace :: a -> Bool
 
   showTokenStream :: [a] -> String
 
 -- derived functions
+isWhiteSpace :: (IsToken a) => a -> Bool
+isWhiteSpace tok = isComment tok || isEmpty tok
+
 notWhiteSpace :: (IsToken a) => a -> Bool
 notWhiteSpace tok = not (isWhiteSpace tok)
 

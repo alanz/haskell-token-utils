@@ -24,7 +24,7 @@ module TestUtils
        -- , logTestSettingsMainfile
        , testCradle
        , catchException
-       , mkTokenCache
+       -- , mkTokenCache
        , hex
        , unspace
        -- , mkTestGhcName
@@ -189,8 +189,8 @@ entriesFromState st =
 -}
 -- ---------------------------------------------------------------------
 
-mkTokenCache :: Tree Entry -> TokenCache
-mkTokenCache forest = TK (Map.fromList [((TId 0),forest)]) (TId 0)
+-- mkTokenCache :: Tree Entry -> TokenCache
+-- mkTokenCache forest = TK (Map.fromList [((TId 0),forest)]) (TId 0)
 
 -- ---------------------------------------------------------------------
 {-
@@ -345,34 +345,24 @@ parsedFileGhc fileName = do
                                    GHC.ghcLink =  GHC.LinkInMemory }
 
         void $ GHC.setSessionDynFlags dflags'''
-        GHC.liftIO $ putStrLn $ "dflags set"
+        -- GHC.liftIO $ putStrLn $ "dflags set"
 
         target <- GHC.guessTarget fileName Nothing
         GHC.setTargets [target]
-        GHC.liftIO $ putStrLn $ "targets set"
+        -- GHC.liftIO $ putStrLn $ "targets set"
         void $ GHC.load GHC.LoadAllTargets -- Loads and compiles, much as calling make
-        GHC.liftIO $ putStrLn $ "targets loaded"
+        -- GHC.liftIO $ putStrLn $ "targets loaded"
         g <- GHC.getModuleGraph
         let showStuff ms = show (GHC.moduleNameString $ GHC.moduleName $ GHC.ms_mod ms,GHC.ms_location ms)
-        GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
+        -- GHC.liftIO $ putStrLn $ "module graph:" ++ (intercalate "," (map showStuff g))
         -- modSum <- GHC.getModSummary $ GHC.mkModuleName "BCpp"
         let modSum = head g
         p <- GHC.parseModule modSum
         t <- GHC.typecheckModule p
-        GHC.liftIO $ putStrLn $ "parsed"
+        -- GHC.liftIO $ putStrLn $ "parsed"
         toks <- GHC.getRichTokenStream (GHC.ms_mod modSum)
         return (t,toks)
 
--- ---------------------------------------------------------------------
-
-instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
-  show t@(GHC.L _l tok) = show ((getLocatedStart t, getLocatedEnd t),tok)
-
--- ---------------------------------------------------------------------
-
-instance IsToken (GHC.Located GHC.Token, String) where
-  allocTokens = GhcLayout.allocTokens
- 
 -- ---------------------------------------------------------------------
 
 -- | gets the (row,col) of the start of the @GHC.SrcSpan@, or (-1,-1)
