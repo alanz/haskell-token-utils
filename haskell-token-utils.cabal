@@ -66,7 +66,7 @@ test-suite spec
     , ghc-mod >= 4.1.0
 
     -- For testing the haskell-src-exts one
-    , haskell-src-exts
+    , haskell-src-exts >= 1.15
 
 
 source-repository head

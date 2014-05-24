@@ -201,6 +201,8 @@ class (Show a) => IsToken a where
   isThen       :: a -> Bool
   isWhere      :: a -> Bool
 
+  tokenToString :: a -> String
+  -- TODO: may be able to get rid of next due to former
   showTokenStream :: [a] -> String
 
 -- derived functions

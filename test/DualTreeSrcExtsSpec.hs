@@ -11,8 +11,10 @@ import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 
 import Language.Haskell.Exts.Lexer
+import Language.Haskell.Exts.Annotated
 
 import TestUtils
+import SrcExtsUtils
 
 -- ---------------------------------------------------------------------
 
@@ -27,13 +29,13 @@ spec = do
 
   describe "layoutTreeToSourceTree" $ do
     it "retrieves the tokens in SourceTree format LetExpr" $ do
-      (t,toks) <- parsedFileGhc "./test/testdata/Layout/LetExpr.hs"
-      let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
+      -- (t,toks) <- parsedFileGhc "./test/testdata/Layout/LetExpr.hs"
+      ParseOk (modu,toks) <- loadFile "./test/testdata/Layout/LetExpr.hs"
 
-      (GHC.showRichTokenStream toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\n module Layout.LetExpr where\n\n foo = let x = 1\n           y = 2\n       in x + y\n\n "
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      (showTokenStream toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\nmodule Layout.LetExpr where\n\nfoo = let x = 1\n          y = 2\n      in x + y\n"
+      let origSource = (showTokenStream toks)
 
-      let layout = allocTokens parsed toks
+      let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 
