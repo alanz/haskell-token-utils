@@ -8,6 +8,7 @@
 
 module SrcExtsKure
   (
+  Ctx(..)
   ) where
 
 import Control.Monad
