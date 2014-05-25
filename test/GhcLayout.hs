@@ -37,12 +37,6 @@ import Control.Exception
 import Data.List
 import Data.Tree
 
--- import Language.Haskell.Refact.Utils.GhcVersionSpecific
--- import Language.Haskell.Refact.Utils.LayoutTypes
--- import Language.Haskell.Refact.Utils.LocUtils
--- import Language.Haskell.Refact.Utils.TokenUtils
--- import Language.Haskell.Refact.Utils.TokenUtilsTypes
--- import Language.Haskell.Refact.Utils.TypeSyn
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
 import Language.Haskell.TokenUtils.TokenUtils

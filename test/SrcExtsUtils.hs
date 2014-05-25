@@ -2,7 +2,8 @@
 {-# Language FlexibleInstances #-}
 module SrcExtsUtils
   (
-  loadFile
+    loadFile
+  , TuToken(..)
   ) where
 
 import Control.Exception
@@ -20,7 +21,7 @@ import Language.Haskell.TokenUtils.Types
 data TuToken = T Token | C Comment
              deriving (Show,Eq)
 
--- loadFile :: FilePath -> IO (ParseResult (Module SrcSpanInfo, [Comment], [Loc Token]))
+loadFile :: FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
 loadFile fileName = do
   src <- readFile fileName
   let mtoks = lexTokenStream src
