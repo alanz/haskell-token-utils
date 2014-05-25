@@ -99,12 +99,12 @@ s2ss (Span (sr,sc) (er,ec)) = (SrcSpan "<unknown>" sr sc er ec)
 -- |Return the length of the token, using the string representation
 -- where possible as it may have changed during a refactoing.
 hseTokenLen :: Loc Token -> Int
-hseTokenLen (Loc _ t) = length (showToken t)
+hseTokenLen (Loc _ t) = length (showToken' t)
 
 hseTokenToString :: Loc TuToken -> String
 hseTokenToString (Loc _ (C (Comment True _ s))) = "{-" ++ s ++ "-}"
 hseTokenToString (Loc _ (C (Comment False _ s))) = "--" ++ s
-hseTokenToString (Loc _ (T tok)) = showToken tok
+hseTokenToString (Loc _ (T tok)) = showToken' tok
 
 
 {-
@@ -169,8 +169,8 @@ showRichTokenStream ts = go startLoc ts ""
 ------------------------------------------------------------------
 -- "Pretty" printing for tokens
 
-showToken :: Token -> String
-showToken t = case t of
+showToken' :: Token -> String
+showToken' t = case t of
   VarId s           -> s
   QVarId (q,s)      -> q ++ '.':s
   IDupVarId s       -> '?':s

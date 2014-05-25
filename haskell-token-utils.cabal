@@ -57,6 +57,8 @@ test-suite spec
     , semigroups
     , monoid-extras
     , mtl
+    -- experimentation
+    , kure
 
     -- For testing the GHC version
     , ghc
@@ -67,7 +69,6 @@ test-suite spec
 
     -- For testing the haskell-src-exts one
     , haskell-src-exts >= 1.15
-
 
 source-repository head
   type:     git

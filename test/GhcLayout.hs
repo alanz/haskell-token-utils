@@ -2018,6 +2018,7 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
   isThen = ghcIsThen
   isWhere = ghcIsWhere
 
+  tokenToString (_,s) = s
   showTokenStream = GHC.showRichTokenStream
 
 instance (HasLoc (GHC.Located a)) where
