@@ -35,7 +35,7 @@ spec = do
       (showTokenStream toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\nmodule Layout.LetExpr where\n\nfoo = let x = 1\n          y = 2\n      in x + y\n"
       let origSource = (showTokenStream toks)
 
-      (show modu) `shouldBe` ""
+      -- (show modu) `shouldBe` ""
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)

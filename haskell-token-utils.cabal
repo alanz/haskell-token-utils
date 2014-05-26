@@ -59,6 +59,7 @@ test-suite spec
     , mtl
     -- experimentation
     , kure
+    , syb
 
     -- For testing the GHC version
     , ghc

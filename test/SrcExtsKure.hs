@@ -25,6 +25,9 @@ import Language.KURE
 -- We want to work with SrcSpans in general, as well as nodes
 -- introducing layout.
 
+-- Hopefully, at a future date, we will be able to write Injection
+-- instances for the GHC variants as well.
+
 data U = UModule         (Module SrcSpanInfo)
        | UModuleHead     (ModuleHead SrcSpanInfo)
        | UModuleName     (ModuleName SrcSpanInfo)
@@ -146,7 +149,6 @@ instance Walker Ctx U where
   allR :: MonadCatch m => Rewrite Ctx m U -> Rewrite Ctx m U
   allR r = prefixFailMsg "allR failed: " $
            rewrite $ \ c -> \case
-              -- UModule modu -> return (UModule <$> allRModule c modu)
               UModule modu -> inject <$> applyR allRModule c modu
               unk -> fail $ "allR U:no case for " ++ show unk
     where
@@ -202,7 +204,6 @@ moduleT t1 t2 t3 t4 t5 f = transform $ \c -> \case
                                 <*> applyT t5 c ds
   _                        -> fail "not a Module"
 
--- moduleAllR :: (Monad m)
 moduleAllR :: MonadCatch m
            => Rewrite Ctx m SrcSpanInfo
            -> Rewrite Ctx m (Maybe (ModuleHead SrcSpanInfo))

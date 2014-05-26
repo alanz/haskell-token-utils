@@ -7,12 +7,18 @@ module SrcExtsUtils
   ) where
 
 import Control.Exception
+import Data.Generics
 import Data.List
+import Data.Tree
 
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Lexer
 
 import Language.Haskell.TokenUtils.Types
+
+import SrcExtsKure
+
+-- ---------------------------------------------------------------------
 
 -- parseFileContentsWithComments :: ParseMode -> String -> ParseResult (Module, [Comment])
 
@@ -320,4 +326,47 @@ showToken' t = case t of
 instance Allocatable (Module SrcSpanInfo) (Loc TuToken) where
   allocTokens = hseAllocTokens
 
-hseAllocTokens = assert False undefined
+
+hseAllocTokens :: Module SrcSpanInfo -> [Loc TuToken] -> LayoutTree (Loc TuToken)
+hseAllocTokens modu toks = r
+  where
+    -- ss = foo modu
+    ss = bar modu
+    r = error $ "foo=" ++ show ss
+
+
+bar :: Module SrcSpanInfo -> Tree SrcSpan
+bar modu = r
+  where
+    nullTree = Node (SrcSpan "" 0 0 0 0) []
+
+    start :: Tree SrcSpan -> Tree SrcSpan
+    start old = old
+
+    r = synthesize nullTree redf (start `mkQ` bb) modu
+
+    redf :: Tree SrcSpan -> Tree SrcSpan -> Tree SrcSpan
+    redf (Node s sub)  old = (Node s (sub ++ [old]))
+
+    bb :: SrcSpanInfo -> Tree SrcSpan -> Tree SrcSpan
+    bb (SrcSpanInfo ss sss) (Node s sub) = Node ss (map (\s -> Node s []) sss)
+    -- bb (SrcSpanInfo ss sss) = Node ss (map (\s -> Node s []) sss)
+
+
+
+
+foo :: Module SrcSpanInfo -> [SrcSpan]
+foo modu = r
+  where
+   r = everything (++) ([] `mkQ` blah) modu
+
+   blah :: SrcSpanInfo -> [SrcSpan]
+   blah (SrcSpanInfo ss sss) = (ss:sss)
+
+-- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
+-- synthesize z o f
+
+-- Bottom-up synthesis of a data structure;
+--  1st argument z is the initial element for the synthesis;
+--  2nd argument o is for reduction of results from subterms;
+--  3rd argument f updates the synthesised data according to the given term
