@@ -338,6 +338,28 @@ hseAllocTokens modu toks = r
 
 
 -- ---------------------------------------------------------------------
+{-
+Notes re HSE let binds
+
+data Exp l
+    ....
+    | Let l (Binds l) (Exp l)               -- ^ local declarations with @let@ ... @in@ ...
+
+instance ExactP Exp where
+  exactP exp = case exp of
+    .....
+    Let l bs e      ->
+        case srcInfoPoints l of
+         [a,b] -> do
+            printString "let"
+            exactPC bs
+            printStringAt (pos b) "in"
+            exactPC e
+         _ -> errorEP "ExactP: Exp: Let is given wrong number of srcInfoPoints"
+
+-}
+
+-- ---------------------------------------------------------------------
 
 bar1 :: Module SrcSpanInfo -> [Tree SrcSpan]
 bar1 modu = r
@@ -347,7 +369,7 @@ bar1 modu = r
     start :: [Tree SrcSpan] -> [Tree SrcSpan]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb) modu
+    r = synthesize [] redf (start `mkQ` bb `extQ` letExp) modu
 
     redf :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
     redf [] b = b
@@ -358,6 +380,12 @@ bar1 modu = r
     bb :: SrcSpanInfo -> [Tree SrcSpan] -> [Tree SrcSpan]
     bb (SrcSpanInfo ss sss) vv = [Node ss vv]
 
+    letExp :: Exp SrcSpanInfo -> [Tree SrcSpan] -> [Tree SrcSpan]
+    letExp (Let l bs e) vv =
+        case srcInfoPoints l of
+          [letPos,inPos] -> error $ "got let " ++ show (letPos,inPos)
+          _              -> vv
+    letExp _ vv = vv
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
 -- synthesize z o f
