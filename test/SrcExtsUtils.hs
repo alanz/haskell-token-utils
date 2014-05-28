@@ -356,7 +356,32 @@ instance ExactP Exp where
             printStringAt (pos b) "in"
             exactPC e
          _ -> errorEP "ExactP: Exp: Let is given wrong number of srcInfoPoints"
+    ....
+    Case l e alts   ->
+        case srcInfoPoints l of
+         a:b:pts -> do
+            printString "case"
+            exactPC e
+            printStringAt (pos b) "of"
+            layoutList pts alts
+         _ -> errorEP "ExactP: Exp: Case is given too few srcInfoPoints"
+    Do l stmts      ->
+        case srcInfoPoints l of
+         a:pts -> do
+            printString "do"
+            layoutList pts stmts
+         _ -> errorEP "ExactP: Exp: Do is given too few srcInfoPoints"
+    MDo l stmts     ->
+        case srcInfoPoints l of
+         a:pts -> do
+            printString "mdo"
+            layoutList pts stmts
+         _ -> errorEP "ExactP: Exp: Mdo is given wrong number of srcInfoPoints"
 
+Need let/in
+     where
+     do
+     case
 -}
 
 -- ---------------------------------------------------------------------
