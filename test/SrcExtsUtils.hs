@@ -330,10 +330,44 @@ instance Allocatable (Module SrcSpanInfo) (Loc TuToken) where
 hseAllocTokens :: Module SrcSpanInfo -> [Loc TuToken] -> LayoutTree (Loc TuToken)
 hseAllocTokens modu toks = r
   where
-    -- ss = foo modu
-    ss = bar modu
-    r = error $ "foo=" ++ show ss
+    -- ss = foo1 modu
+    ss = bar1 modu
+    -- r = error $ "foo=" ++ show ss
+    -- r = error $ "foo=" ++ drawTreeCompact (Node nullSpan ss)
+    r = error $ "foo=" ++ drawForestSrcSpan ss
 
+
+-- ---------------------------------------------------------------------
+
+bar1 :: Module SrcSpanInfo -> [Tree SrcSpan]
+bar1 modu = r
+  where
+    nullTree = Node (SrcSpan "" 0 0 0 0) []
+
+    start :: [Tree SrcSpan] -> [Tree SrcSpan]
+    start old = old
+
+    r = synthesize [] redf (start `mkQ` bb) modu
+
+    redf :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
+    redf [] b = b
+    redf a [] = a
+    redf [(Node s sub)]  old = [(Node s (sub ++ old))]
+
+    -- ends up as GenericQ (SrcSpanInfo -> Tree SrcSpan)
+    bb :: SrcSpanInfo -> [Tree SrcSpan] -> [Tree SrcSpan]
+    bb (SrcSpanInfo ss sss) vv = [Node ss vv]
+
+
+-- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
+-- synthesize z o f
+
+-- Bottom-up synthesis of a data structure;
+--  1st argument z is the initial element for the synthesis;
+--  2nd argument o is for reduction of results from subterms;
+--  3rd argument f updates the synthesised data according to the given term
+
+-- ---------------------------------------------------------------------
 
 bar :: Module SrcSpanInfo -> Tree SrcSpan
 bar modu = r
@@ -348,12 +382,75 @@ bar modu = r
     redf :: Tree SrcSpan -> Tree SrcSpan -> Tree SrcSpan
     redf (Node s sub)  old = (Node s (sub ++ [old]))
 
+    -- ends up as GenericQ (SrcSpanInfo -> Tree SrcSpan)
     bb :: SrcSpanInfo -> Tree SrcSpan -> Tree SrcSpan
     bb (SrcSpanInfo ss sss) (Node s sub) = Node ss (map (\s -> Node s []) sss)
     -- bb (SrcSpanInfo ss sss) = Node ss (map (\s -> Node s []) sss)
 
+-- ---------------------------------------------------------------------
+
+foo2 :: Module SrcSpanInfo -> [Tree SrcSpan]
+foo2 modu = r
+  where
+    r = everythingWithContext ctx ff (mkZero `mkQ` doSrcSpan) modu
+
+    -- The context is the path from this tree to the root of the tree
+    ctx :: [SrcSpan]
+    ctx = []
+
+    mkZero :: [SrcSpan] -> ([Tree SrcSpan],[SrcSpan])
+    mkZero = undefined
+
+     -- combine the incoming tree fragments for form a complete nested
+     -- tree.
+     -- `old` is the tree built so far, `new` the new part.
+     -- The context provides the path to the root of the tree.
+     -- When the new SrcSpan belongs higher up the tree, backtrack up
+     -- the tree to the relevant point and continue there
+    ff :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
+    ff [] new = new
+    ff old [] = old
+    ff [old] [new@(Node ss sss)] = [Node ss (old:sss)]
+    ff old new = error $ "hseAllocTokens.foo2.ff:unexpected " ++ show (old,new)
+
+    doSrcSpan :: SrcSpanInfo -> [SrcSpan] -> ([Tree SrcSpan],[SrcSpan])
+    doSrcSpan = undefined
+
+{-
+-- | Summarise all nodes in top-down, left-to-right order, carrying some state
+-- down the tree during the computation, but not left-to-right to siblings.
+everythingWithContext :: s -> (r -> r -> r) -> GenericQ (s -> (r, s)) -> GenericQ r
+everythingWithContext s0 f q x =
+  foldl f r (gmapQ (everythingWithContext s' f q) x)
+    where (r, s') = q x s0
+
+-}
+
+-- ---------------------------------------------------------------------
+
+foo1 :: Module SrcSpanInfo -> [Tree SrcSpan]
+foo1 modu = r
+  where
+   r = everything (++) ([] `mkQ` blah) modu
+
+   -- combine the incoming tree fragments for form a complete nested
+   -- tree.
+   -- `old` is the tree built so far, `new` the new part.
+   ff :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
+   ff [] new = new
+   ff old [] = old
+
+   ff [old@(Node sso ssso)] [new@(Node ssn sssn)] = [Node sso (new:ssso)]
+   ff old new = error $ "hseAllocTokens.foo1.ff:unexpected " ++ show (old,new)
+
+   blah :: SrcSpanInfo -> [Tree SrcSpan]
+   blah (SrcSpanInfo ss sss) = [Node (ss) []]
+   -- blah (SrcSpanInfo ss sss) = [Node (ss) (map mkNode sss)]
 
 
+   mkNode ss = Node ss []
+
+-- ---------------------------------------------------------------------
 
 foo :: Module SrcSpanInfo -> [SrcSpan]
 foo modu = r
@@ -363,10 +460,67 @@ foo modu = r
    blah :: SrcSpanInfo -> [SrcSpan]
    blah (SrcSpanInfo ss sss) = (ss:sss)
 
--- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
--- synthesize z o f
+-- ---------------------------------------------------------------------
+-- baz :: String -> Tree Char
+-- baz :: Data a => a -> Char
+-- baz :: Data a => a -> Tree String
+baz :: Data a => a -> Tree String
+baz str = r
+  where
+    r = synthesize z o f str
 
--- Bottom-up synthesis of a data structure;
---  1st argument z is the initial element for the synthesis;
---  2nd argument o is for reduction of results from subterms;
---  3rd argument f updates the synthesised data according to the given term
+    -- s is String
+    -- t is Tree String
+
+    z :: String
+    z = ""
+
+    o ::  Tree String -> String -> String
+    -- o n@(Node s ss) s1 = show (n,s1)
+    o n@(Node s ss) s1 = s++s1
+
+    f :: GenericQ (String -> Tree String)
+    f = (mkZ  `mkQ` q1)
+
+    q1 :: Char -> String -> Tree String
+    q1 c s = Node (c:s) []
+
+    mkZ :: String -> Tree String
+    mkZ s = Node s []
+
+-- ---------------------------------------------------------------------
+
+nullSpan :: SrcSpan
+nullSpan = (SrcSpan "" 0 0 0 0)
+
+-- ---------------------------------------------------------------------
+
+drawTreeCompact :: Tree SrcSpan -> String
+drawTreeCompact = unlines . drawTreeCompact' 0
+
+drawTreeCompact' :: Int -> Tree SrcSpan -> [String]
+drawTreeCompact' level (Node ss ts0) = ((show level) ++ ":" ++ (show ss))
+                                                          : (concatMap (drawTreeCompact' (level + 1)) ts0)
+
+-- ---------------------------------------------------------------------
+
+
+-- | Neat 2-dimensional drawing of a tree.
+drawTreeSrcSpan :: Tree SrcSpan -> String
+drawTreeSrcSpan  = unlines . draw1
+
+-- | Neat 2-dimensional drawing of a forest.
+drawForestSrcSpan :: Forest SrcSpan -> String
+drawForestSrcSpan  = unlines . map drawTreeSrcSpan
+
+draw1 :: Tree SrcSpan -> [String]
+draw1 (Node x ts0) = show x : drawSubTrees ts0
+  where
+    drawSubTrees [] = []
+    drawSubTrees [t] =
+        "|" : shift "`- " "   " (draw1 t)
+    drawSubTrees (t:ts) =
+        "|" : shift "+- " "|  " (draw1 t) ++ drawSubTrees ts
+
+    shift first other = zipWith (++) (first : repeat other)
+

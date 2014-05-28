@@ -26,8 +26,8 @@ hseAllocTokens modu toks = r
 
 -- based on the fib example
 
-applyFib :: TransformA b -> Arith -> Either String b
-applyFib t = runKureM Right Left . applyT t mempty
+-- applyFib :: TransformA b -> Arith -> Either String b
+-- applyFib t = runKureM Right Left . applyT t mempty
 
 
 -- runKureM :: (a -> b) -> (String -> b) -> KureM a -> b
@@ -38,8 +38,8 @@ applyFib t = runKureM Right Left . applyT t mempty
 
 -- | For this simple example, the context is just an 'AbsolutePath',
 -- and transformations always operates on 'Arith'.
-type TransformA b = Transform (AbsolutePath Crumb) KureM Arith b
-type RewriteA = TransformA Arith
+-- type TransformA b = Transform (AbsolutePath Crumb) KureM Arith b
+-- type RewriteA = TransformA Arith
 
 -- ---------------------------------------------------------------------
 
