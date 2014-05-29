@@ -395,7 +395,7 @@ bar2 modu = r
     start :: [LayoutTree TuToken] -> [LayoutTree TuToken]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
+    r = synthesize [] redf (start `mkQ` bb `extQ` letExp) modu
 
     redf :: [LayoutTree TuToken] -> [LayoutTree TuToken] -> [LayoutTree TuToken]
     redf [] b = b
@@ -407,9 +407,16 @@ bar2 modu = r
     bb (SrcSpanInfo ss sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     letExp :: Exp SrcSpanInfo -> [LayoutTree TuToken] -> [LayoutTree TuToken]
-    letExp (Let l bs e) vv =
+    letExp (Let l@(SrcSpanInfo ss _) bs e) vv =
         case srcInfoPoints l of
-          [letPos,inPos] -> error $ "got let " ++ show (letPos,inPos)
+          [letPos,inPos] ->
+            let
+              (Span letStart letEnd) = ss2s letPos
+              (Span inStart inEnd) = ss2s inPos
+              io = FromAlignCol letStart
+              (Span start end) = ss2s ss
+              eo = FromAlignCol inEnd
+            in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
           _              -> vv
     letExp _ vv = vv
 
