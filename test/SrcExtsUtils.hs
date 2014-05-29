@@ -15,6 +15,7 @@ import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Lexer
 
 import Language.Haskell.TokenUtils.Types
+import Language.Haskell.TokenUtils.Utils
 
 import SrcExtsKure
 
@@ -331,10 +332,10 @@ hseAllocTokens :: Module SrcSpanInfo -> [Loc TuToken] -> LayoutTree (Loc TuToken
 hseAllocTokens modu toks = r
   where
     -- ss = foo1 modu
-    ss = bar1 modu
+    ss = bar2 modu
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (Node nullSpan ss)
-    r = error $ "foo=" ++ drawForestSrcSpan ss
+    r = error $ "foo=" ++ drawForestEntry ss
 
 
 -- ---------------------------------------------------------------------
@@ -386,6 +387,42 @@ Need let/in
 
 -- ---------------------------------------------------------------------
 
+bar2 :: Module SrcSpanInfo -> [LayoutTree TuToken]
+bar2 modu = r
+  where
+    nullTree = Node (SrcSpan "" 0 0 0 0) []
+
+    start :: [LayoutTree TuToken] -> [LayoutTree TuToken]
+    start old = old
+
+    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
+
+    redf :: [LayoutTree TuToken] -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    redf [] b = b
+    redf a [] = a
+    redf [(Node s sub)]  old = [(Node s (sub ++ old))]
+
+    -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
+    bb :: SrcSpanInfo -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    bb (SrcSpanInfo ss sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+
+    letExp :: Exp SrcSpanInfo -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    letExp (Let l bs e) vv =
+        case srcInfoPoints l of
+          [letPos,inPos] -> error $ "got let " ++ show (letPos,inPos)
+          _              -> vv
+    letExp _ vv = vv
+
+-- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
+-- synthesize z o f
+
+-- Bottom-up synthesis of a data structure;
+--  1st argument z is the initial element for the synthesis;
+--  2nd argument o is for reduction of results from subterms;
+--  3rd argument f updates the synthesised data according to the given term
+
+-- ---------------------------------------------------------------------
+
 bar1 :: Module SrcSpanInfo -> [Tree SrcSpan]
 bar1 modu = r
   where
@@ -394,7 +431,7 @@ bar1 modu = r
     start :: [Tree SrcSpan] -> [Tree SrcSpan]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb `extQ` letExp) modu
+    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
 
     redf :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
     redf [] b = b

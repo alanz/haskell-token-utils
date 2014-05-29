@@ -18,6 +18,16 @@ module Language.Haskell.TokenUtils.Utils
   , placeAbove
   , allocList
   , strip
+
+  -- * SrcSpan to ForestSpan conversions
+  , sf
+  , fs
+
+  -- * drawing the various trees
+  , drawTreeEntry
+  , drawForestEntry
+  , showLayout
+  , drawTreeCompact
   ) where
 
 import Data.List
@@ -348,3 +358,50 @@ allocList xs toksIn allocFunc = r
 
 spanStartEnd :: Span -> (SimpPos,SimpPos)
 spanStartEnd (Span start end) = (start,end)
+
+-- ---------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------
+-- | Neat 2-dimensional drawing of a tree.
+drawTreeEntry :: Tree (Entry a) -> String
+drawTreeEntry  = unlines . drawEntry
+
+-- | Neat 2-dimensional drawing of a forest.
+drawForestEntry :: Forest (Entry a) -> String
+drawForestEntry  = unlines . map drawTreeEntry
+
+drawEntry :: Tree (Entry a) -> [String]
+drawEntry (Node (Deleted sspan  _pg eg )  _ ) = [(showForestSpan sspan) ++ (show eg) ++ "D"]
+drawEntry (Node (Entry sspan lay _toks) ts0) = ((showForestSpan sspan) ++ (showLayout lay)): drawSubTrees ts0
+  where
+    drawSubTrees [] = []
+    drawSubTrees [t] =
+        "|" : shft "`- " "   " (drawEntry t)
+    drawSubTrees (t:ts) =
+        "|" : shft "+- " "|  " (drawEntry t) ++ drawSubTrees ts
+
+    shft first other = zipWith (++) (first : repeat other)
+
+showLayout :: Layout -> String
+showLayout NoChange       = ""
+showLayout (Above so p1 (r,c) eo) = "(Above "++ show so ++ " " ++ show p1 ++ " " ++ show (r,c) ++ " " ++ show eo ++ ")"
+-- showLayout (Offset r c)   = "(Offset " ++ show r ++ " " ++ show c ++ ")"
+
+-- ---------------------------------------------------------------------
+
+drawTreeCompact :: Tree (Entry a) -> String
+drawTreeCompact = unlines . drawTreeCompact' 0
+
+drawTreeCompact' :: Int -> Tree (Entry a) -> [String]
+drawTreeCompact' level (Node (Deleted sspan _pg eg )  _  ) = [(show level) ++ ":" ++ (showForestSpan sspan) ++ (show eg) ++ "D"]
+drawTreeCompact' level (Node (Entry sspan lay _toks) ts0) = ((show level) ++ ":" ++ (showForestSpan sspan) ++ (showLayout lay))
+                                                          : (concatMap (drawTreeCompact' (level + 1)) ts0)
+
+showForestSpan :: ForestSpan -> String
+showForestSpan ((sr,sc),(er,ec))
+  = show ((flToNum sr,sc),(flToNum er,ec))
+  where
+    flToNum (ForestLine ch tr v l) = (if ch then 10000000000::Integer else 0)
+                                   + ((fromIntegral tr) * 100000000::Integer)
+                                   + ((fromIntegral v)  *   1000000::Integer)
+                                   + (fromIntegral l)
