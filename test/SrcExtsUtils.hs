@@ -3,6 +3,8 @@
 module SrcExtsUtils
   (
     loadFile
+  , loadFileWithMode
+  , templateHaskellMode
   , TuToken(..)
   ) where
 
@@ -32,10 +34,17 @@ data TuToken = T Token | C Comment
              deriving (Show,Eq)
 
 loadFile :: FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
-loadFile fileName = do
+loadFile fileName = loadFileWithMode defaultParseMode fileName
+
+templateHaskellMode :: ParseMode
+templateHaskellMode
+  = defaultParseMode { extensions = (EnableExtension TemplateHaskell):(extensions defaultParseMode)}
+
+loadFileWithMode :: ParseMode -> FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
+loadFileWithMode parseMode fileName = do
   src <- readFile fileName
   let mtoks = lexTokenStream src
-  let res = case parseFileContentsWithComments defaultParseMode src of
+  let res = case parseFileContentsWithComments parseMode src of
               ParseOk (modu,comments) -> case mtoks of
                 ParseOk toks -> ParseOk (modu,comments,toks)
                 ParseFailed l s -> ParseFailed l s
@@ -43,6 +52,8 @@ loadFile fileName = do
   case res of
     ParseOk (m, comments,toks) -> return $ ParseOk (m, (mergeToksAndComments toks comments))
     ParseFailed l s -> return (ParseFailed l s)
+
+-- ---------------------------------------------------------------------
 
 mergeToksAndComments :: [Loc Token] -> [Comment] -> [Loc TuToken]
 mergeToksAndComments toks comments = go toks comments
