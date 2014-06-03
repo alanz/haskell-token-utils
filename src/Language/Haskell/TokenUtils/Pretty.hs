@@ -3,6 +3,7 @@
 module Language.Haskell.TokenUtils.Pretty
   (
   Outputable(..)
+  , showPpr
   ) where
 
 import Data.Semigroup hiding ( (<>) )
@@ -15,6 +16,11 @@ import Text.PrettyPrint
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Tree.DUAL.Internal as I
 
+
+-- ---------------------------------------------------------------------
+
+showPpr :: Outputable a => a -> String
+showPpr a = render $ ppr a
 
 -- ---------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
 import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
+import Language.Haskell.TokenUtils.Pretty
 
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Pretty
@@ -46,7 +47,8 @@ spec = do
 
       let srcTree = layoutTreeToSourceTree layout
       -- (showGhc srcTree) `shouldBe` ""
-      -- (show $ retrieveLines srcTree) `shouldBe` ""
+      (showPpr srcTree) `shouldBe` ""
+      (show $ retrieveLines srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
