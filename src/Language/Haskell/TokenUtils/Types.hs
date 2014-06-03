@@ -64,15 +64,15 @@ data Entry a =
    Entry !ForestSpan
          !Layout
          ![a]
- -- |Deleted has
- --   * the source span has been deleted
- --   * prior gap in lines
- --   * the gap between this span end and the
- --     start of the next in the fringe of the
- --     tree.
- | Deleted !ForestSpan
-           !RowOffset
-           !SimpPos
+   -- |Deleted has
+   --   * the source span has been deleted
+   --   * prior gap in lines
+   --   * the gap between this span end and the
+   --     start of the next in the fringe of the
+   --     tree.
+   | Deleted !ForestSpan
+             !RowOffset
+             !SimpPos
  deriving (Show)
 
 instance (IsToken a) => Eq (Entry a) where
@@ -84,6 +84,13 @@ instance (IsToken a) => Eq (Entry a) where
     = fs1 == fs2 && pg1 == pg2 && lay1 == lay2
 
   (==) _ _ = False
+
+instance HasLoc (Entry a) where
+  getLoc (Entry fs _ _) = getLoc fs
+  getLoc (Entry fs _ _) = getLoc fs
+
+  getLocEnd (Entry fs _ _) = getLocEnd fs
+  getLocEnd (Entry fs _ _) = getLocEnd fs
 
 
 type RowOffset = Int
@@ -153,6 +160,10 @@ type ForestPos = (ForestLine,Int)
 
 -- |Match a SrcSpan, using a ForestLine as the marker
 type ForestSpan = (ForestPos,ForestPos)
+
+instance HasLoc ForestSpan where
+  getLoc fs    = fst (forestSpanToSimpPos fs)
+  getLocEnd fs = snd (forestSpanToSimpPos fs)
 
 -- ---------------------------------------------------------------------
 

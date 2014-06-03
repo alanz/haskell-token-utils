@@ -130,7 +130,7 @@ splitToksForList xs toks = splitToksIncComments (getLoc s, getLocEnd e) toks
 splitToksIncComments :: (IsToken a)
   => (SimpPos, SimpPos)
   -> [a]
-  -> ([a], [a], [a])
+  -> ([a], [a], [a]) -- before,included,after
 splitToksIncComments pos toks = splitToks pos' toks
   where
     pos' = startEndLocIncComments' toks pos

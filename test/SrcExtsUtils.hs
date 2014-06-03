@@ -7,6 +7,7 @@ module SrcExtsUtils
   ) where
 
 import Control.Exception
+import Control.Monad
 import Data.Generics
 import Data.List
 import Data.Tree
@@ -18,6 +19,8 @@ import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
 import SrcExtsKure
+
+import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -333,9 +336,42 @@ hseAllocTokens modu toks = r
   where
     -- ss = foo1 modu
     ss = bar2 modu
-    -- r = error $ "foo=" ++ show ss
+    ss2 = decorate (ghead "hseAllocTokens" ss) toks
+    -- r = error $ "foo=" ++ show ss2
     -- r = error $ "foo=" ++ drawTreeCompact (Node nullSpan ss)
-    r = error $ "foo=" ++ drawForestEntry ss
+    -- r = error $ "foo=" ++ drawForestEntry ss
+    -- r = error $ "foo toks=" ++ show toks
+    -- r = error $ "foo modu=" ++ show modu
+    r = ss2
+
+
+-- ---------------------------------------------------------------------
+
+-- Allocate all the tokens to the given tree
+decorate :: LayoutTree (Loc TuToken) -> [Loc TuToken] -> LayoutTree (Loc TuToken)
+decorate tree toks = go toks tree
+  where
+    go :: [Loc TuToken] -> LayoutTree (Loc TuToken) -> LayoutTree (Loc TuToken)
+    go ts (Node e subs) = (Node e subs'')
+      where
+        -- b = map (\t -> let f = treeStartEnd t in (getLoc f, getLocEnd f)) subs
+
+        doOne :: ([Loc TuToken],[LayoutTree (Loc TuToken)]) -> LayoutTree (Loc TuToken) -> ([Loc TuToken],[LayoutTree (Loc TuToken)])
+        doOne (ts1,acc) tree = (ts1',acc')
+          where
+            ss = treeStartEnd tree
+            (before,middle,after) = splitToksIncComments (getLoc ss,getLocEnd ss) ts1
+            ts1' = after
+            tree' = case tree of
+              Node (Entry ss1 lo []) [] -> [Node (Entry ss1 lo middle) []]
+              _ -> [go middle tree]
+            acc' = acc ++ makeLeafFromToks before ++ tree'
+
+        (end,subs') = foldl' doOne (ts,[]) subs
+        -- (end,subs') = doOne (ts,[]) (head subs)
+        subs'' = subs' ++ makeLeafFromToks end
+
+    go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
 
 
 -- ---------------------------------------------------------------------
@@ -387,37 +423,37 @@ Need let/in
 
 -- ---------------------------------------------------------------------
 
-bar2 :: Module SrcSpanInfo -> [LayoutTree TuToken]
+bar2 :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
 bar2 modu = r
   where
     nullTree = Node (SrcSpan "" 0 0 0 0) []
 
-    start :: [LayoutTree TuToken] -> [LayoutTree TuToken]
+    start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     start old = old
 
     r = synthesize [] redf (start `mkQ` bb `extQ` letExp) modu
 
-    redf :: [LayoutTree TuToken] -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    redf :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     redf [] b = b
     redf a [] = a
     redf [(Node s sub)]  old = [(Node s (sub ++ old))]
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
-    bb :: SrcSpanInfo -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    bb :: SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     bb (SrcSpanInfo ss sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
-    letExp :: Exp SrcSpanInfo -> [LayoutTree TuToken] -> [LayoutTree TuToken]
+    letExp :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     letExp (Let l@(SrcSpanInfo ss _) bs e) vv =
         case srcInfoPoints l of
           [letPos,inPos] ->
             let
               (Span letStart letEnd) = ss2s letPos
-              (Span inStart inEnd) = ss2s inPos
+              (Span inStart inEnd)   = ss2s inPos
               io = FromAlignCol letStart
               (Span start end) = ss2s ss
               eo = FromAlignCol inEnd
             in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
-          _              -> vv
+          _ -> vv
     letExp _ vv = vv
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t

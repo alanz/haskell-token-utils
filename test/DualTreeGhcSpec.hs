@@ -5,15 +5,13 @@ import           Test.Hspec
 
 
 import qualified GHC        as GHC
--- import qualified Outputable as GHC
 
--- import qualified GHC.SYB.Utils as SYB
 import Data.Maybe
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
-import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
+import Language.Haskell.TokenUtils.Utils
 
 -- import Data.Tree.DUAL
 
