@@ -10,6 +10,7 @@ import Language.Haskell.TokenUtils.Layout
 import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Pretty
+import Language.Haskell.TokenUtils.Utils
 
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Pretty
@@ -41,6 +42,7 @@ spec = do
 
       let layout = allocTokens modu toks
       -- (show layout) `shouldBe` ""
+      (drawTreeWithToks layout) `shouldBe` ""
       -- (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 

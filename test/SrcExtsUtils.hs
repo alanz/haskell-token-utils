@@ -442,12 +442,14 @@ bar2 modu = r
     start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb `extQ` letExp) modu
+    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
 
     redf :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     redf [] b = b
     redf a [] = a
-    redf [(Node s sub)]  old = [(Node s (sub ++ old))]
+    redf [a@(Node s1 sub1)]  [b@(Node s2 sub2)] = [(Node s1 (sub1 ++ [b]))]
+         -- TODO: check that we are doing the right thing here
+    redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
     bb :: SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
@@ -474,6 +476,12 @@ bar2 modu = r
 --  1st argument z is the initial element for the synthesis;
 --  2nd argument o is for reduction of results from subterms;
 --  3rd argument f updates the synthesised data according to the given term
+
+-- synthesize :: s  -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
+-- synthesize z o f x = f x (foldr o z (gmapQ (synthesize z o f) x))
+
+-- foldr :: (b -> a -> a) -> a -> [b] -> a
+-- foldl :: (a -> b -> a) -> a -> [b] -> a
 
 -- ---------------------------------------------------------------------
 

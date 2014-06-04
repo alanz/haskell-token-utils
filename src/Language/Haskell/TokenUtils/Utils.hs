@@ -28,8 +28,10 @@ module Language.Haskell.TokenUtils.Utils
   , drawForestEntry
   , showLayout
   , drawTreeCompact
+  , drawTreeWithToks
   ) where
 
+import Control.Exception
 import Data.List
 import Data.Tree
 
@@ -405,3 +407,22 @@ showForestSpan ((sr,sc),(er,ec))
                                    + ((fromIntegral tr) * 100000000::Integer)
                                    + ((fromIntegral v)  *   1000000::Integer)
                                    + (fromIntegral l)
+
+-- ---------------------------------------------------------------------
+
+drawTreeWithToks :: (IsToken a) => Tree (Entry a) -> String
+drawTreeWithToks = unlines . drawTreeWithToks' 0
+
+drawTreeWithToks' :: (IsToken a) => Int -> Tree (Entry a) -> [String]
+drawTreeWithToks' level (Node (Deleted sspan _pg eg )  _  )
+   = [(showLevel level) ++ ":" ++ (showForestSpan sspan) ++ (show eg) ++ "D"]
+drawTreeWithToks' level (Node (Entry sspan lay toks) ts0)
+   = ((showLevel level) ++ ":" ++ (showForestSpan sspan) ++ (showLayout lay) ++ (showFriendlyToks toks))
+       : (concatMap (drawTreeWithToks' (level + 1)) ts0)
+
+showLevel :: Int -> String
+showLevel level = take level (repeat ' ')
+
+showFriendlyToks :: IsToken a => [a] -> String
+showFriendlyToks toks = reverse $ dropWhile (=='\n')
+                      $ reverse $ dropWhile (=='\n') $ showTokenStream toks
