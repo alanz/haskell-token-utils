@@ -10,7 +10,7 @@ module SrcExtsUtils
 
 import Control.Exception
 import Control.Monad
-import Data.Generics
+import Data.Generics hiding (GT)
 import Data.List
 import Data.Tree
 
@@ -444,11 +444,90 @@ bar2 modu = r
 
     r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
 
+    mergeSubs as bs = as ++ bs
+
     redf :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     redf [] b = b
     redf a [] = a
-    redf [a@(Node s1 sub1)]  [b@(Node s2 sub2)] = [(Node s1 (sub1 ++ [b]))]
-         -- TODO: check that we are doing the right thing here
+
+    redf [a@(Node e1@(Entry s1 l1 t1) sub1)]  [b@(Node e2@(Entry s2 l2 t2) sub2)]
+      =
+        let
+          ass@(as,ae) = spanStartEnd $ fs $ treeStartEnd a
+          bss@(bs,be) = spanStartEnd $ fs $ treeStartEnd b
+        in
+         trace (show ((fs $ treeStartEnd a,l1,length t1,length sub1),(fs $ treeStartEnd b,l2,length t2,length sub2)))
+          (case (compare as bs,compare ae be) of
+            (EQ,EQ) -> [Node e1 (sub1 ++ sub2)]
+
+            (LT,EQ) -> [Node e1 (mergeSubs sub1 [b])]    -- b is sub of a
+            (GT,EQ) -> [Node e2 (mergeSubs sub2 [a])]    -- a is sub of b
+
+            (EQ,GT) -> [Node e1 (mergeSubs [b] sub1)]    -- b is sub of a
+            (EQ,LT) -> [Node e2 (mergeSubs [a] sub2)]    -- a is sub of b
+
+            (_,_) -> if ae <= bs
+                       then [Node e [a,b]]
+                       else if be <= as
+                         then [Node e [b,a]]
+                         else -- fully nested case
+                           [Node e1 (sub1++[b])] -- should merge subs
+                       where
+                         e = Entry ss l1 t1
+                         ss = combineSpans s1 s2
+            )
+{-
+
+Possibilities
+
+equal : discard one
+  -----
+  -----
+
+end together, 2 versions
+  ------- b is sub of a
+   ------
+
+   ------ a is sub of b
+  -------
+
+start together, 2 versions
+  -------- b is sub of a
+  -----
+
+  -----    a is sub of b
+  --------
+
+one fully in another
+
+  ------------- b is sub of a
+    ------
+
+    ------         a is sub of b
+  -------------
+
+
+no overlap a first
+  ------            new span
+          -------
+
+no overlap b first
+            -----  new span
+  ------
+
+
+overlap a first
+  ------    impossible for AST
+    ------
+
+overlap b first
+    -------- impossible for AST
+  --------
+
+-}
+
+
+
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)

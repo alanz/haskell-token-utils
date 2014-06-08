@@ -29,6 +29,7 @@ spec = do
   -- ---------------------------------------------
 
   describe "layoutTreeToSourceTree" $ do
+
     it "retrieves the tokens in SourceTree format LetExpr" $ do
       (t,toks) <- parsedFileGhc "./test/testdata/Layout/LetExpr.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t

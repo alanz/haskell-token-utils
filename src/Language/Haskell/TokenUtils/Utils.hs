@@ -23,6 +23,10 @@ module Language.Haskell.TokenUtils.Utils
   , sf
   , fs
 
+  -- * Spans
+  , spanStartEnd
+  , combineSpans
+
   -- * drawing the various trees
   , drawTreeEntry
   , drawForestEntry
