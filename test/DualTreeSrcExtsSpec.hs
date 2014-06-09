@@ -11,11 +11,12 @@ import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Pretty
 import Language.Haskell.TokenUtils.Utils
+import Language.Haskell.TokenUtils.HSE.Layout
 
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Pretty
 
-import SrcExtsUtils
+-- import SrcExtsUtils
 import TestUtils
 
 
@@ -43,15 +44,15 @@ spec = do
 
       let layout = allocTokens modu toks
       -- (show layout) `shouldBe` ""
-      (drawTreeWithToks layout) `shouldBe` ""
+      -- (drawTreeWithToks layout) `shouldBe` ""
       -- (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
       -- (showGhc srcTree) `shouldBe` ""
-      (showPpr srcTree) `shouldBe` ""
-      (show $ retrieveLines srcTree) `shouldBe` ""
+      -- (showPpr srcTree) `shouldBe` ""
+      -- (show $ retrieveLines srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 

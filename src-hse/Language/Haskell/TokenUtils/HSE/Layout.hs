@@ -1,6 +1,6 @@
 {-# Language MultiParamTypeClasses #-}
 {-# Language FlexibleInstances #-}
-module SrcExtsUtils
+module Language.Haskell.TokenUtils.HSE.Layout
   (
     loadFile
   , loadFileWithMode
@@ -20,7 +20,7 @@ import Language.Haskell.Exts.Lexer
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
-import SrcExtsKure
+-- import SrcExtsKure
 
 import Debug.Trace
 
@@ -456,7 +456,7 @@ bar2 modu = r
           ass@(as,ae) = spanStartEnd $ fs $ treeStartEnd a
           bss@(bs,be) = spanStartEnd $ fs $ treeStartEnd b
         in
-         trace (show ((fs $ treeStartEnd a,l1,length t1,length sub1),(fs $ treeStartEnd b,l2,length t2,length sub2)))
+         -- trace (show ((fs $ treeStartEnd a,l1,length t1,length sub1),(fs $ treeStartEnd b,l2,length t2,length sub2)))
           (case (compare as bs,compare ae be) of
             (EQ,EQ) -> [Node e1 (sub1 ++ sub2)]
 

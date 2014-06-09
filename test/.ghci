@@ -3,7 +3,11 @@
 :set -Wall
 
 :set -i./src
+:set -i./src-ghc
+:set -i./src-hse
 :set -i../src
+:set -i../src-ghc
+:set -i../src-hse
 :set -i./test
 :set -i./dist/build/autogen
 :set -package ghc

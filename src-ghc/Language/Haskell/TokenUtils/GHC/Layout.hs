@@ -9,7 +9,7 @@
 -- |
 --
 
-module GhcLayout (
+module Language.Haskell.TokenUtils.GHC.Layout (
   --   initTokenLayout
   -- , nullTokenLayout
     ghcAllocTokens
