@@ -53,6 +53,7 @@ loadFileWithMode parseMode fileName = do
     ParseOk (m, comments,toks) -> return $ ParseOk (m, (mergeToksAndComments toks comments))
     ParseFailed l s -> return (ParseFailed l s)
 
+
 -- ---------------------------------------------------------------------
 
 mergeToksAndComments :: [Loc Token] -> [Comment] -> [Loc TuToken]
@@ -155,31 +156,6 @@ hseShowTokenStream ts2 = (go startLoc ts2 "") ++ "\n"
                   where tokEnd = (er,ec)
                         str = tokenToString tok
 
-
-{-
-showRichTokenStream ts = go startLoc ts ""
-    where sourceFile = getFile $ map (getLoc . fst) ts
-          getFile [] = panic "showRichTokenStream: No source file found"
-          getFile (UnhelpfulSpan _ : xs) = getFile xs
-          getFile (RealSrcSpan s : _) = srcSpanFile s
-          startLoc = mkRealSrcLoc sourceFile 1 1
-          go _ [] = id
-          go loc ((L span _, str):ts)
-              = case span of
-                UnhelpfulSpan _ -> go loc ts
-                RealSrcSpan s
-                 | locLine == tokLine -> ((replicate (tokCol - locCol) ' ') ++)
-                                       . (str ++)
-                                       . go tokEnd ts
-                 | otherwise -> ((replicate (tokLine - locLine) '\n') ++)
-                              . ((replicate (tokCol - 1) ' ') ++) -- AZ: updated line
-                              . (str ++)
-                              . go tokEnd ts
-                  where (locLine, locCol) = (srcLocLine loc, srcLocCol loc)
-                        (tokLine, tokCol) = (srcSpanStartLine s, srcSpanStartCol s)
-                        tokEnd = realSrcSpanEnd s
-
--}
 
 -- ---------------------------------------------------------------------
 
@@ -345,8 +321,7 @@ instance Allocatable (Module SrcSpanInfo) (Loc TuToken) where
 hseAllocTokens :: Module SrcSpanInfo -> [Loc TuToken] -> LayoutTree (Loc TuToken)
 hseAllocTokens modu toks = r
   where
-    -- ss = foo1 modu
-    ss = bar2 modu
+    ss = allocTokens' modu
     ss2 = decorate (ghead "hseAllocTokens" ss) toks
     -- r = error $ "foo=" ++ show ss2
     -- r = error $ "foo=" ++ drawTreeCompact (Node nullSpan ss)
@@ -434,8 +409,8 @@ Need let/in
 
 -- ---------------------------------------------------------------------
 
-bar2 :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
-bar2 modu = r
+allocTokens' :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
+allocTokens' modu = r
   where
     nullTree = Node (SrcSpan "" 0 0 0 0) []
 
@@ -620,112 +595,11 @@ bar modu = r
 
 -- ---------------------------------------------------------------------
 
-foo2 :: Module SrcSpanInfo -> [Tree SrcSpan]
-foo2 modu = r
-  where
-    r = everythingWithContext ctx ff (mkZero `mkQ` doSrcSpan) modu
-
-    -- The context is the path from this tree to the root of the tree
-    ctx :: [SrcSpan]
-    ctx = []
-
-    mkZero :: [SrcSpan] -> ([Tree SrcSpan],[SrcSpan])
-    mkZero = undefined
-
-     -- combine the incoming tree fragments for form a complete nested
-     -- tree.
-     -- `old` is the tree built so far, `new` the new part.
-     -- The context provides the path to the root of the tree.
-     -- When the new SrcSpan belongs higher up the tree, backtrack up
-     -- the tree to the relevant point and continue there
-    ff :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
-    ff [] new = new
-    ff old [] = old
-    ff [old] [new@(Node ss sss)] = [Node ss (old:sss)]
-    ff old new = error $ "hseAllocTokens.foo2.ff:unexpected " ++ show (old,new)
-
-    doSrcSpan :: SrcSpanInfo -> [SrcSpan] -> ([Tree SrcSpan],[SrcSpan])
-    doSrcSpan = undefined
-
-{-
--- | Summarise all nodes in top-down, left-to-right order, carrying some state
--- down the tree during the computation, but not left-to-right to siblings.
-everythingWithContext :: s -> (r -> r -> r) -> GenericQ (s -> (r, s)) -> GenericQ r
-everythingWithContext s0 f q x =
-  foldl f r (gmapQ (everythingWithContext s' f q) x)
-    where (r, s') = q x s0
-
--}
-
--- ---------------------------------------------------------------------
-
-foo1 :: Module SrcSpanInfo -> [Tree SrcSpan]
-foo1 modu = r
-  where
-   r = everything (++) ([] `mkQ` blah) modu
-
-   -- combine the incoming tree fragments for form a complete nested
-   -- tree.
-   -- `old` is the tree built so far, `new` the new part.
-   ff :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
-   ff [] new = new
-   ff old [] = old
-
-   ff [old@(Node sso ssso)] [new@(Node ssn sssn)] = [Node sso (new:ssso)]
-   ff old new = error $ "hseAllocTokens.foo1.ff:unexpected " ++ show (old,new)
-
-   blah :: SrcSpanInfo -> [Tree SrcSpan]
-   blah (SrcSpanInfo ss sss) = [Node (ss) []]
-   -- blah (SrcSpanInfo ss sss) = [Node (ss) (map mkNode sss)]
-
-
-   mkNode ss = Node ss []
-
--- ---------------------------------------------------------------------
-
-foo :: Module SrcSpanInfo -> [SrcSpan]
-foo modu = r
-  where
-   r = everything (++) ([] `mkQ` blah) modu
-
-   blah :: SrcSpanInfo -> [SrcSpan]
-   blah (SrcSpanInfo ss sss) = (ss:sss)
-
--- ---------------------------------------------------------------------
--- baz :: String -> Tree Char
--- baz :: Data a => a -> Char
--- baz :: Data a => a -> Tree String
-baz :: Data a => a -> Tree String
-baz str = r
-  where
-    r = synthesize z o f str
-
-    -- s is String
-    -- t is Tree String
-
-    z :: String
-    z = ""
-
-    o ::  Tree String -> String -> String
-    -- o n@(Node s ss) s1 = show (n,s1)
-    o n@(Node s ss) s1 = s++s1
-
-    f :: GenericQ (String -> Tree String)
-    f = (mkZ  `mkQ` q1)
-
-    q1 :: Char -> String -> Tree String
-    q1 c s = Node (c:s) []
-
-    mkZ :: String -> Tree String
-    mkZ s = Node s []
-
--- ---------------------------------------------------------------------
-
 nullSpan :: SrcSpan
 nullSpan = (SrcSpan "" 0 0 0 0)
 
 -- ---------------------------------------------------------------------
-
+{-
 drawTreeCompact :: Tree SrcSpan -> String
 drawTreeCompact = unlines . drawTreeCompact' 0
 
@@ -734,7 +608,6 @@ drawTreeCompact' level (Node ss ts0) = ((show level) ++ ":" ++ (show ss))
                                                           : (concatMap (drawTreeCompact' (level + 1)) ts0)
 
 -- ---------------------------------------------------------------------
-
 
 -- | Neat 2-dimensional drawing of a tree.
 drawTreeSrcSpan :: Tree SrcSpan -> String
@@ -754,4 +627,4 @@ draw1 (Node x ts0) = show x : drawSubTrees ts0
         "|" : shift "+- " "|  " (draw1 t) ++ drawSubTrees ts
 
     shift first other = zipWith (++) (first : repeat other)
-
+-}
