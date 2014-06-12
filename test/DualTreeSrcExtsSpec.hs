@@ -2,7 +2,6 @@ module DualTreeSrcExtsSpec (main, spec) where
 
 import           Test.Hspec
 
-
 import Data.Maybe
 
 import Language.Haskell.TokenUtils.DualTree
@@ -16,7 +15,6 @@ import Language.Haskell.TokenUtils.HSE.Layout
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Pretty
 
--- import SrcExtsUtils
 import TestUtils
 
 

@@ -13,7 +13,6 @@ import Language.Haskell.TokenUtils.Layout
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
--- import Data.Tree.DUAL
 
 import TestUtils
 

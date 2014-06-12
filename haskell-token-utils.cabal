@@ -23,6 +23,7 @@ library
                      , Language.Haskell.TokenUtils.Types
                      -- to be moved into its own library when published
                      , Language.Haskell.TokenUtils.GHC.Layout
+                     , Language.Haskell.TokenUtils.HSE.Layout
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7
@@ -38,6 +39,8 @@ library
                      , ghc-syb-utils
                      , syb
 
+                     -- for HSE, until split out
+                     , haskell-src-exts
   hs-source-dirs:      src
                      , src-ghc
                      , src-hse
