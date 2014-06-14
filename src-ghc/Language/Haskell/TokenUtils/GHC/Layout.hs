@@ -2132,3 +2132,37 @@ instance GHC.Outputable Source where
 instance GHC.Outputable LineOpt where
   ppr ONone  = GHC.text "ONone"
   ppr OGroup = GHC.text "OGroup"
+
+instance GHC.Outputable (LayoutTree GhcPosToken) where
+  ppr (Node e sub) = GHC.text "Node" GHC.<+> GHC.ppr e
+                                     GHC.<+> GHC.ppr sub
+
+instance GHC.Outputable (Entry GhcPosToken) where
+  ppr (Entry fs l toks) = GHC.text "Entry" GHC.<+> GHC.ppr fs
+                                           GHC.<+> GHC.ppr l
+                                           GHC.<+> GHC.ppr toks
+  ppr (Deleted fs ro pos) = GHC.text "Deleted" GHC.<+> GHC.ppr fs
+                                           GHC.<+> GHC.ppr ro
+                                           GHC.<+> GHC.ppr pos
+
+instance GHC.Outputable ForestLine where
+  ppr (ForestLine lc sel v l) = GHC.parens $ GHC.text "ForestLine"
+                                       GHC.<+> GHC.ppr lc GHC.<+> GHC.int sel
+                                       GHC.<+> GHC.int v GHC.<+> GHC.int l
+
+instance GHC.Outputable Layout where
+  ppr (Above bo pos1 pos2 eo) = GHC.text "Above"
+                                GHC.<+> GHC.ppr bo
+                                GHC.<+> GHC.ppr pos1
+                                GHC.<+> GHC.ppr pos2
+                                GHC.<+> GHC.ppr eo
+
+instance GHC.Outputable GHC.Token where
+  ppr t = GHC.text (show t)
+
+instance GHC.Outputable EndOffset where
+  ppr None = GHC.text "None"
+  ppr (SameLine co) = GHC.text "SameLine"
+                                GHC.<+> GHC.ppr co
+  ppr (FromAlignCol pos) = GHC.text "FromAlignCol"
+                                GHC.<+> GHC.ppr pos
