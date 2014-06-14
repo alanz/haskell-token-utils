@@ -2156,6 +2156,7 @@ instance GHC.Outputable Layout where
                                 GHC.<+> GHC.ppr pos1
                                 GHC.<+> GHC.ppr pos2
                                 GHC.<+> GHC.ppr eo
+  ppr NoChange = GHC.text "NoChange"
 
 instance GHC.Outputable GHC.Token where
   ppr t = GHC.text (show t)
