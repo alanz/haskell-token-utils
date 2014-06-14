@@ -10,9 +10,9 @@
 --
 
 module Language.Haskell.TokenUtils.GHC.Layout (
-  --   initTokenLayout
+    initTokenLayout
   -- , nullTokenLayout
-    ghcAllocTokens
+  , ghcAllocTokens
   , retrieveTokens
   , getLoc
 
@@ -182,10 +182,12 @@ instance Outputable EndOffset where
   ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
 
 -- ---------------------------------------------------------------------
+-}
 
-initTokenLayout :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree
+initTokenLayout :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree GhcPosToken
 initTokenLayout parsed toks = (allocTokens parsed toks)
 
+{-
 nullTokenLayout :: TokenLayout
 -- nullTokenLayout = TL (Leaf nullSrcSpan NoChange [])
 nullTokenLayout = TL (Node (Entry (sf nullSrcSpan) NoChange []) [])
@@ -2111,3 +2113,21 @@ isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
 
 ghcTokenLen (_,s) = length s
 
+
+-- ---------------------------------------------------------------------
+
+instance GHC.Outputable (Line GhcPosToken) where
+  ppr (Line r c o s f str) = GHC.parens $ GHC.text "Line" GHC.<+> GHC.ppr r
+                         GHC.<+> GHC.ppr c GHC.<+> GHC.ppr o
+                         GHC.<+> GHC.ppr s GHC.<+> GHC.ppr f
+                         GHC.<+> GHC.text ("\"" ++ (GHC.showRichTokenStream str) ++ "\"")
+                         -- GHC.<+> GHC.text (show str) -- ++AZ++ debug
+
+instance GHC.Outputable Source where
+  ppr SOriginal = GHC.text "SOriginal"
+  ppr SAdded    = GHC.text "SAdded"
+  ppr SWasAdded = GHC.text "SWasAdded"
+
+instance GHC.Outputable LineOpt where
+  ppr ONone  = GHC.text "ONone"
+  ppr OGroup = GHC.text "OGroup"

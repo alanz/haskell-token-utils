@@ -6,6 +6,7 @@ module Language.Haskell.TokenUtils.Types
     Entry(..)
   , TokenCache(..)
   , TreeId(..)
+  , mainTid
   , ForestSpan
   , ForestPos
   , ForestLine(..)
