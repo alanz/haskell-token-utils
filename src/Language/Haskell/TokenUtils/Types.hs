@@ -19,7 +19,7 @@ module Language.Haskell.TokenUtils.Types
   , EndOffset(..)
   , Located(..)
   , Span(..)
-  , nullSrcSpan
+  , nullSpan
   , TokenLayout
   , LayoutTree
   , forestSpanToSimpPos
@@ -251,8 +251,8 @@ data Located e = L Span e
 data Span = Span (Row,Col) (Row,Col)
           deriving (Show,Eq)
 
-nullSrcSpan :: Span
-nullSrcSpan = Span (0,0) (0,0)
+nullSpan :: Span
+nullSpan = Span (0,0) (0,0)
 
 data TokenLayout a = TL (Tree (Entry a))
 

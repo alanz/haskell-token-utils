@@ -15,6 +15,7 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , ghcAllocTokens
   , retrieveTokens
   , getLoc
+  , nullSrcSpan
 
   -- * For testing
   , addEndOffsets

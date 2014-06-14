@@ -231,7 +231,7 @@ makeGroupLayout :: (IsToken a) => Layout -> [LayoutTree a] -> LayoutTree a
 makeGroupLayout lay ls = Node (Entry loc lay []) ls
   where
     loc = case ls of
-           [] -> sf nullSrcSpan
+           [] -> sf nullSpan
            _  -> combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
 
 -- ---------------------------------------------------------------------
