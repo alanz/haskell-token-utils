@@ -21,6 +21,7 @@ library
                      , Language.Haskell.TokenUtils.Pretty
                      , Language.Haskell.TokenUtils.TokenUtils
                      , Language.Haskell.TokenUtils.Types
+                     , Language.Haskell.TokenUtils.Utils
                      -- to be moved into its own library when published
                      , Language.Haskell.TokenUtils.GHC.Layout
                      , Language.Haskell.TokenUtils.HSE.Layout
