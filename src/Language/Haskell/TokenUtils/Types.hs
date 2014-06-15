@@ -191,6 +191,7 @@ class Allocatable b a where
 -- namely [(GHC.Located GHC.Token, String)]
 -- For haskell-src-exts this is the reult of `lexTokenStream`, namely `[HSE.Loc HSE.Token]`
 class (Show a) => IsToken a where
+  -- TODO: get rid of these and put a HasLoc requirement
   getSpan     :: a -> Span
   putSpan     :: a -> Span -> a
 
@@ -270,8 +271,6 @@ forestSpanFromEntry (Deleted ss _ _) = ss
 putForestSpanInEntry :: Entry a -> ForestSpan -> Entry a
 putForestSpanInEntry (Entry   _ss lay toks) ssnew = (Entry ssnew lay toks)
 putForestSpanInEntry (Deleted _ss pg eg) ssnew = (Deleted ssnew pg eg)
-
-
 
 -- ---------------------------------------------------------------------
 

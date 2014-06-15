@@ -95,7 +95,7 @@ instance (IsToken a) => Outputable (Line a) where
   ppr (Line r c o s f str) = parens $ text "Line" <+> ppr r
                          <+> ppr c <+> ppr o
                          <+> ppr s <+> ppr f
-                         <+> text ("\"" ++ (showTokenStream str) ++ "\"")
+                         <+> text ("\"" ++ (init $ showTokenStream str) ++ "\"")
                          -- <+> text (show str) -- ++AZ++ debug
 
 instance Outputable Source where

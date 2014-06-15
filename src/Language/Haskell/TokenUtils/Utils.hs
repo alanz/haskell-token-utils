@@ -21,7 +21,25 @@ module Language.Haskell.TokenUtils.Utils
 
   -- * SrcSpan to ForestSpan conversions
   , sf
+  , srcSpanToForestSpan
   , fs
+  , forestSpanToSrcSpan
+
+  -- * ForestSpans
+  , treeIdFromForestSpan
+  , forestSpanVersions
+  , forestSpanAstVersions
+  , forestSpanLenChangedFlags
+  , forestSpanVersionNotSet
+  , forestPosVersionSet
+  , forestPosAstVersionSet
+  , forestPosVersionNotSet
+  , forestSpanLenChanged
+  , forestPosLenChanged
+  , treeIdIntoForestSpan
+  , spanContains
+  , insertVersionsInForestSpan
+  , insertLenChangedInForestSpan
 
   -- * Spans
   , spanStartEnd
@@ -33,6 +51,7 @@ module Language.Haskell.TokenUtils.Utils
   , showLayout
   , drawTreeCompact
   , drawTreeWithToks
+  , showForestSpan
   ) where
 
 import Control.Exception
@@ -41,7 +60,7 @@ import Data.Tree
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
-import Language.Haskell.TokenUtils.TokenUtils
+-- import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 
 -- ---------------------------------------------------------------------
@@ -273,6 +292,78 @@ forestSpanToSrcSpan ((fls,sc),(fle,ec)) = sspan
     sspan = Span locStart locEnd
 
 
+-- ---------------------------------------------------------------------
+
+-- |Gets the version numbers
+forestSpanVersions :: ForestSpan -> (Int,Int)
+forestSpanVersions ((ForestLine _ _ sv _,_),(ForestLine _ _ ev _,_)) = (sv,ev)
+
+-- |Gets the AST tree numbers
+forestSpanAstVersions :: ForestSpan -> (Int,Int)
+forestSpanAstVersions ((ForestLine _ trs _ _,_),(ForestLine _ tre _ _,_)) = (trs,tre)
+
+-- |Gets the SpanLengthChanged flags
+forestSpanLenChangedFlags :: ForestSpan -> (Bool,Bool)
+forestSpanLenChangedFlags ((ForestLine chs _ _ _,_),(ForestLine che _ _ _,_)) = (chs,che)
+
+{- moved to haskell-token-utils
+-- |Checks if the version is non-zero in either position
+forestSpanVersionSet :: ForestSpan -> Bool
+forestSpanVersionSet ((ForestLine _ _ sv _,_),(ForestLine _ _ ev _,_)) = sv /= 0 || ev /= 0
+-}
+
+-- |Checks if the version is zero in both positions
+forestSpanVersionNotSet :: ForestSpan -> Bool
+forestSpanVersionNotSet ((ForestLine _ _ sv _,_),(ForestLine _ _ ev _,_)) = sv == 0 && ev == 0
+
+-- |Checks if the version is non-zero
+forestPosVersionSet :: ForestPos -> Bool
+forestPosVersionSet (ForestLine _ _ v _,_) = v /= 0
+
+-- |Checks if the AST version is non-zero
+forestPosAstVersionSet :: ForestPos -> Bool
+forestPosAstVersionSet (ForestLine _ tr _ _,_) = tr /= 0
+
+-- |Checks if the version is zero
+forestPosVersionNotSet :: ForestPos -> Bool
+forestPosVersionNotSet (ForestLine _ _ v _,_) = v == 0
+
+forestSpanLenChanged :: ForestSpan -> Bool
+forestSpanLenChanged (s,e) = (forestPosLenChanged s) || (forestPosLenChanged e)
+
+forestPosLenChanged :: ForestPos -> Bool
+forestPosLenChanged (ForestLine ch _ _ _,_) = ch
+
+-- |Puts a TreeId into a forestSpan
+treeIdIntoForestSpan :: TreeId -> ForestSpan -> ForestSpan
+treeIdIntoForestSpan (TId sel) ((ForestLine chs _ sv sl,sc),(ForestLine che _ ev el,ec))
+  = ((ForestLine chs sel sv sl,sc),(ForestLine che sel ev el,ec))
+
+-- ---------------------------------------------------------------------
+
+-- |Does the first span contain the second? Takes cognisance of the
+-- various flags a ForestSpan can have.
+-- NOTE: This function relies on the Eq instance for ForestLine
+spanContains :: ForestSpan -> ForestSpan -> Bool
+spanContains span1 span2 = (startPos <= nodeStart && endPos >= nodeEnd)
+    where
+        -- TODO: This looks like a no-op?
+        (tvs,_tve) = forestSpanVersions $ span1
+        (nvs,_nve) = forestSpanVersions $ span2
+        (startPos,endPos)   = insertVersionsInForestSpan tvs tvs span1
+        (nodeStart,nodeEnd) = insertVersionsInForestSpan nvs nvs span2
+
+-- ---------------------------------------------------------------------
+
+insertVersionsInForestSpan :: Int -> Int -> ForestSpan -> ForestSpan
+insertVersionsInForestSpan vsNew veNew ((ForestLine chs trs _vs ls,cs),(ForestLine che tre _ve le,ce))
+  = ((ForestLine chs trs vsNew ls,cs),(ForestLine che tre veNew le,ce))
+
+-- ---------------------------------------------------------------------
+
+insertLenChangedInForestSpan :: Bool -> ForestSpan -> ForestSpan
+insertLenChangedInForestSpan chNew ((ForestLine _chs trs vs ls,cs),(ForestLine _che tre ve le,ce))
+  = ((ForestLine chNew trs vs ls,cs),(ForestLine chNew tre ve le,ce))
 
 -- ---------------------------------------------------------------------
 
@@ -323,8 +414,6 @@ simpPosToForestSpan ((sr,sc),(er,ec))
 
 -- ---------------------------------------------------------------------
 
--- ---------------------------------------------------------------------
-
 strip :: (IsToken a) => [LayoutTree a] -> [LayoutTree a]
 strip ls = filter (not . emptyNode) ls
   where
@@ -366,6 +455,9 @@ spanStartEnd :: Span -> (SimpPos,SimpPos)
 spanStartEnd (Span start end) = (start,end)
 
 -- ---------------------------------------------------------------------
+
+treeIdFromForestSpan :: ForestSpan -> TreeId
+treeIdFromForestSpan ((ForestLine _ tr _ _,_),(ForestLine _ _ _ _,_)) = TId tr
 
 -- ---------------------------------------------------------------------
 -- | Neat 2-dimensional drawing of a tree.
@@ -430,3 +522,4 @@ showLevel level = take level (repeat ' ')
 showFriendlyToks :: IsToken a => [a] -> String
 showFriendlyToks toks = reverse $ dropWhile (=='\n')
                       $ reverse $ dropWhile (=='\n') $ showTokenStream toks
+
