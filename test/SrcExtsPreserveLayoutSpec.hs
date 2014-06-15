@@ -37,6 +37,8 @@ spec = do
       let origSource = (showTokenStream toks)
       let layout = allocTokens modu toks
 
+      -- (show modu) `shouldBe` ""
+
       {-
       HaRe log of this renaming
 

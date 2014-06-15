@@ -417,7 +417,10 @@ allocTokens' modu = r
     start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
+    r = synthesize [] redf (start `mkQ` bb
+                           -- `extQ` letExp
+                           `extQ` match
+                           ) modu
 
     mergeSubs as bs = as ++ bs
 
@@ -522,6 +525,19 @@ overlap b first
             in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
           _ -> vv
     letExp _ vv = vv
+
+    match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    match (Match l _ _ _ Nothing) vv = vv
+    match (Match l@(SrcSpanInfo ss _) _ _ _ (Just _)) vv =
+      case srcInfoPoints l of
+        (wherePos:_) ->
+          let
+            (Span whereStart whereEnd) = ss2s wherePos
+            io = FromAlignCol whereStart
+            (Span start end) = ss2s ss
+            eo = FromAlignCol (0,0)
+          in [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
+        _ -> vv
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
 -- synthesize z o f
