@@ -183,8 +183,99 @@ instance Outputable EndOffset where
   ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
 
 -- ---------------------------------------------------------------------
+
+deriving instance Show Label
+
+instance Outputable (Tree Entry) where
+  ppr (Node label subs) = hang (text "Node") 2 (vcat [ppr label,ppr subs])
+
+instance Outputable Entry where
+  ppr (Entry sspan lay toks) = text "Entry" <+> ppr sspan <+> ppr lay <+> text (show toks)
+  ppr (Deleted sspan pg eg)     = text "Deleted" <+> ppr sspan <+> ppr pg <+> ppr eg
+
+instance Outputable Layout where
+  ppr (Above so p1 p2 oe)   = text "Above" <+> ppr so <+> ppr p1 <+> ppr p2 <+> ppr oe
+  -- ppr (Offset r c)    = text "Offset" <+> ppr r <+> ppr c
+  ppr (NoChange)      = text "NoChange"
+  -- ppr (EndOffset r c) = text "EndOffset" <+> ppr r <+> ppr c
+
+instance Outputable PprOrigin where
+  ppr Original = text "Original"
+  ppr Added    = text "Added"
+
+instance Outputable Ppr where
+  ppr (PprText r c o str) = text "PprText" <+> ppr r <+> ppr c <+> ppr o
+                        <+> text "\"" <> text str <> text "\""
+  ppr (PprAbove so rc erc pps) = hang (text "PprAbove" <+> ppr so <+> ppr rc <+> ppr erc)
+                                           2 (ppr pps)
+  -- ppr (PprOffset ro co pps)       = hang (text "PprOffset" <+> ppr ro <+> ppr co)
+  --                                          2 (ppr pps)
+  ppr (PprDeleted ro co lb l la)     = text "PprDeleted" <+> ppr ro <+> ppr co
+                                           <+> ppr lb <+> ppr l <+> ppr la
+                                         --  <+> ppr n
+
+instance Outputable EndOffset where
+  ppr None               = text "None"
+  ppr (SameLine co)      = text "SameLine" <+> ppr co
+  ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
+
 -}
 
+-- ---------------------------------------------------------------------
+
+instance GHC.Outputable (Line GhcPosToken) where
+  ppr (Line r c o s f str) = GHC.parens $ GHC.text "Line" GHC.<+> GHC.ppr r
+                         GHC.<+> GHC.ppr c GHC.<+> GHC.ppr o
+                         GHC.<+> GHC.ppr s GHC.<+> GHC.ppr f
+                         GHC.<+> GHC.text ("\"" ++ (GHC.showRichTokenStream str) ++ "\"")
+                         -- GHC.<+> GHC.text (show str) -- ++AZ++ debug
+
+instance GHC.Outputable Source where
+  ppr SOriginal = GHC.text "SOriginal"
+  ppr SAdded    = GHC.text "SAdded"
+  ppr SWasAdded = GHC.text "SWasAdded"
+
+instance GHC.Outputable LineOpt where
+  ppr ONone  = GHC.text "ONone"
+  ppr OGroup = GHC.text "OGroup"
+
+instance GHC.Outputable (LayoutTree GhcPosToken) where
+  ppr (Node e sub) = GHC.hang (GHC.text "Node") 2
+                              (GHC.vcat [GHC.ppr e,GHC.ppr sub])
+
+
+instance GHC.Outputable (Entry GhcPosToken) where
+  ppr (Entry ffs l toks) = GHC.text "Entry" GHC.<+> GHC.ppr ffs
+                                            GHC.<+> GHC.ppr l
+                                            GHC.<+> GHC.text (show toks)
+  ppr (Deleted ffs ro pos) = GHC.text "Deleted" GHC.<+> GHC.ppr ffs
+                                           GHC.<+> GHC.ppr ro
+                                           GHC.<+> GHC.ppr pos
+
+instance GHC.Outputable ForestLine where
+  ppr (ForestLine lc sel v l) = GHC.parens $ GHC.text "ForestLine"
+                                       GHC.<+> GHC.ppr lc GHC.<+> GHC.int sel
+                                       GHC.<+> GHC.int v GHC.<+> GHC.int l
+
+instance GHC.Outputable Layout where
+  ppr (Above bo pos1 pos2 eo) = GHC.text "Above"
+                                GHC.<+> GHC.ppr bo
+                                GHC.<+> GHC.ppr pos1
+                                GHC.<+> GHC.ppr pos2
+                                GHC.<+> GHC.ppr eo
+  ppr NoChange = GHC.text "NoChange"
+
+instance GHC.Outputable GHC.Token where
+  ppr t = GHC.text (show t)
+
+instance GHC.Outputable EndOffset where
+  ppr None = GHC.text "None"
+  ppr (SameLine co) = GHC.text "SameLine"
+                                GHC.<+> GHC.ppr co
+  ppr (FromAlignCol pos) = GHC.text "FromAlignCol"
+                                GHC.<+> GHC.ppr pos
+
+-- ---------------------------------------------------------------------
 initTokenLayout :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree GhcPosToken
 initTokenLayout parsed toks = (allocTokens parsed toks)
 
@@ -2115,55 +2206,3 @@ isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
 ghcTokenLen (_,s) = length s
 
 
--- ---------------------------------------------------------------------
-
-instance GHC.Outputable (Line GhcPosToken) where
-  ppr (Line r c o s f str) = GHC.parens $ GHC.text "Line" GHC.<+> GHC.ppr r
-                         GHC.<+> GHC.ppr c GHC.<+> GHC.ppr o
-                         GHC.<+> GHC.ppr s GHC.<+> GHC.ppr f
-                         GHC.<+> GHC.text ("\"" ++ (GHC.showRichTokenStream str) ++ "\"")
-                         -- GHC.<+> GHC.text (show str) -- ++AZ++ debug
-
-instance GHC.Outputable Source where
-  ppr SOriginal = GHC.text "SOriginal"
-  ppr SAdded    = GHC.text "SAdded"
-  ppr SWasAdded = GHC.text "SWasAdded"
-
-instance GHC.Outputable LineOpt where
-  ppr ONone  = GHC.text "ONone"
-  ppr OGroup = GHC.text "OGroup"
-
-instance GHC.Outputable (LayoutTree GhcPosToken) where
-  ppr (Node e sub) = GHC.text "Node" GHC.<+> GHC.ppr e
-                                     GHC.<+> GHC.ppr sub
-
-instance GHC.Outputable (Entry GhcPosToken) where
-  ppr (Entry fs l toks) = GHC.text "Entry" GHC.<+> GHC.ppr fs
-                                           GHC.<+> GHC.ppr l
-                                           GHC.<+> GHC.ppr toks
-  ppr (Deleted fs ro pos) = GHC.text "Deleted" GHC.<+> GHC.ppr fs
-                                           GHC.<+> GHC.ppr ro
-                                           GHC.<+> GHC.ppr pos
-
-instance GHC.Outputable ForestLine where
-  ppr (ForestLine lc sel v l) = GHC.parens $ GHC.text "ForestLine"
-                                       GHC.<+> GHC.ppr lc GHC.<+> GHC.int sel
-                                       GHC.<+> GHC.int v GHC.<+> GHC.int l
-
-instance GHC.Outputable Layout where
-  ppr (Above bo pos1 pos2 eo) = GHC.text "Above"
-                                GHC.<+> GHC.ppr bo
-                                GHC.<+> GHC.ppr pos1
-                                GHC.<+> GHC.ppr pos2
-                                GHC.<+> GHC.ppr eo
-  ppr NoChange = GHC.text "NoChange"
-
-instance GHC.Outputable GHC.Token where
-  ppr t = GHC.text (show t)
-
-instance GHC.Outputable EndOffset where
-  ppr None = GHC.text "None"
-  ppr (SameLine co) = GHC.text "SameLine"
-                                GHC.<+> GHC.ppr co
-  ppr (FromAlignCol pos) = GHC.text "FromAlignCol"
-                                GHC.<+> GHC.ppr pos
