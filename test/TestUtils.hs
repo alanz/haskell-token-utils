@@ -7,6 +7,7 @@ module TestUtils
        , parsedFileGhc
        , testCradle
        , catchException
+       , mkHseSrcSpan
 
        , hex
        , unspace
@@ -32,6 +33,8 @@ import Language.Haskell.GhcMod
 import Language.Haskell.TokenUtils.API
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.GHC.Layout
+
+import qualified Language.Haskell.Exts.Annotated as HSE
 
 import Numeric
 import System.Directory
@@ -173,6 +176,10 @@ getLocatedStart (GHC.L l _) = getGhcLoc l
 getLocatedEnd :: GHC.GenLocated GHC.SrcSpan t -> (Int, Int)
 getLocatedEnd (GHC.L l _) = getGhcLocEnd l
 
+-- ---------------------------------------------------------------------
+
+mkHseSrcSpan :: SimpPos -> SimpPos -> HSE.SrcSpan
+mkHseSrcSpan (sr,sc) (er,ec) = (HSE.mkSrcSpan (HSE.SrcLoc "filename" sr sc) (HSE.SrcLoc "filename" er ec))
 
 -- EOF
 

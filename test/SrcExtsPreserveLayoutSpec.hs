@@ -58,20 +58,27 @@ spec = do
       fetchToksFinal (not showing toks)
 
       -- ----------------
-      replaceToken test/testdata/Renaming/LayoutIn1.hs:7:17-18:(((False,0,0,7),17),((False,0,0,7),19))((((7,17),(7,23)),ITvarid "square"),"square")
-      replaceToken test/testdata/Renaming/LayoutIn1.hs:7:24-25:(((False,0,0,7),24),((False,0,0,7),26))((((7,24),(7,30)),ITvarid "square"),"square")
-      replaceToken test/testdata/Renaming/LayoutIn1.hs:7:35-36:(((False,0,0,7),35),((False,0,0,7),37))((((7,35),(7,41)),ITvarid "square"),"square")
-      replaceToken test/testdata/Renaming/LayoutIn1.hs:7:35-36:(((False,0,0,7),35),((False,0,0,7),37))((((7,35),(7,41)),ITvarid "square"),"square")
       -}
-      let tok = Loc (mkSrcSpan noLoc noLoc) (T (VarId "square"))
+      -- replaceToken test/testdata/Renaming/LayoutIn1.hs:7:17-18:(((False,0,0,7),17),((False,0,0,7),19))((((7,17),(7,23)),ITvarid "square"),"square")
+      let tok = (T (VarId "square"))
+      let tok1 = Loc (mkHseSrcSpan (7,17) (7,23)) tok
       let ss1 = Span (7,17) (7,19)
-      let f2 = replaceTokenForSrcSpan layout ss1 tok
+      let f2 = replaceTokenForSrcSpan layout ss1 tok1
 
-      (drawTreeCompact f2) `shouldBe` ""
+      -- replaceToken test/testdata/Renaming/LayoutIn1.hs:7:24-25:(((False,0,0,7),24),((False,0,0,7),26))((((7,24),(7,30)),ITvarid "square"),"square")
+      let f3 = replaceTokenForSrcSpan f2 (Span (7,24) (7,26)) (Loc (mkHseSrcSpan (7,24) (7,30)) tok)
 
-      let srcTree = layoutTreeToSourceTree f2
+      -- replaceToken test/testdata/Renaming/LayoutIn1.hs:7:35-36:(((False,0,0,7),35),((False,0,0,7),37))((((7,35),(7,41)),ITvarid "square"),"square")
+      let f4 = replaceTokenForSrcSpan f3 (Span (7,35) (7,37)) (Loc (mkHseSrcSpan (7,35) (7,41)) tok)
 
-      (showPpr srcTree) `shouldBe` ""
+      -- replaceToken test/testdata/Renaming/LayoutIn1.hs:7:35-36:(((False,0,0,7),35),((False,0,0,7),37))((((7,35),(7,41)),ITvarid "square"),"square")
+      let f5 = replaceTokenForSrcSpan f4 (Span (7,35) (7,37)) (Loc (mkHseSrcSpan (7,35) (7,41)) tok)
+
+      -- (drawTreeCompact f5) `shouldBe` ""
+
+      let srcTree = layoutTreeToSourceTree f5
+
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
