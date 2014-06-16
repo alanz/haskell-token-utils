@@ -38,6 +38,7 @@ spec = do
       let layout = allocTokens modu toks
 
       -- (show modu) `shouldBe` ""
+      (drawTreeCompact layout) `shouldBe` ""
 
       {-
       HaRe log of this renaming

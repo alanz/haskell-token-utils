@@ -45,7 +45,6 @@ import qualified Data.Tree.DUAL.Internal as I
 data DeletedSpan = DeletedSpan Span RowOffset SimpPos
               deriving (Show,Eq)
 
--- TODO: We are not actually using any of these
 data Transformation = TAbove ColOffset EndOffset (Row,Col) (Row,Col) EndOffset
                     deriving Show
 

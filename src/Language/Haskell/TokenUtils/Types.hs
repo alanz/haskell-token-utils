@@ -50,6 +50,7 @@ module Language.Haskell.TokenUtils.Types
 import Control.Exception
 import Data.Bits
 import Data.List
+import Data.Monoid
 import Data.Tree
 
 import qualified Data.Map as Map

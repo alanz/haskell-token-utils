@@ -12,6 +12,7 @@ import Control.Exception
 import Control.Monad
 import Data.Generics hiding (GT)
 import Data.List
+import Data.Monoid
 import Data.Tree
 
 import Language.Haskell.Exts.Annotated
@@ -428,21 +429,22 @@ allocTokens' modu = r
     redf [] b = b
     redf a [] = a
 
-    redf [a@(Node e1@(Entry s1 l1 t1) sub1)]  [b@(Node e2@(Entry s2 l2 t2) sub2)]
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node e2@(Entry s2 l2 []) sub2)]
       =
         let
           ass@(as,ae) = spanStartEnd $ fs $ treeStartEnd a
           bss@(bs,be) = spanStartEnd $ fs $ treeStartEnd b
+          ss = combineSpans s1 s2
         in
-         -- trace (show ((fs $ treeStartEnd a,l1,length t1,length sub1),(fs $ treeStartEnd b,l2,length t2,length sub2)))
+         trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2)))
           (case (compare as bs,compare ae be) of
-            (EQ,EQ) -> [Node e1 (sub1 ++ sub2)]
+            (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
 
-            (LT,EQ) -> [Node e1 (mergeSubs sub1 [b])]    -- b is sub of a
-            (GT,EQ) -> [Node e2 (mergeSubs sub2 [a])]    -- a is sub of b
+            (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+            (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
 
-            (EQ,GT) -> [Node e1 (mergeSubs [b] sub1)]    -- b is sub of a
-            (EQ,LT) -> [Node e2 (mergeSubs [a] sub2)]    -- a is sub of b
+            (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+            (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
 
             (_,_) -> if ae <= bs
                        then [Node e [a,b]]
@@ -451,8 +453,7 @@ allocTokens' modu = r
                          else -- fully nested case
                            [Node e1 (sub1++[b])] -- should merge subs
                        where
-                         e = Entry ss l1 t1
-                         ss = combineSpans s1 s2
+                         e = Entry ss NoChange []
             )
 {-
 
@@ -528,15 +529,17 @@ overlap b first
 
     match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     match (Match l _ _ _ Nothing) vv = vv
-    match (Match l@(SrcSpanInfo ss _) _ _ _ (Just _)) vv =
+    match (Match l@(SrcSpanInfo ss _) _ _ _ (Just (BDecls (SrcSpanInfo bs _) _))) vv =
       case srcInfoPoints l of
         (wherePos:_) ->
           let
             (Span whereStart whereEnd) = ss2s wherePos
             io = FromAlignCol whereStart
-            (Span start end) = ss2s ss
+            -- (Span start end) = ss2s ss
+            (Span start end) = ss2s bs
             eo = FromAlignCol (0,0)
           in [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
+          -- in error $ "match called"
         _ -> vv
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
@@ -553,94 +556,25 @@ overlap b first
 -- foldr :: (b -> a -> a) -> a -> [b] -> a
 -- foldl :: (a -> b -> a) -> a -> [b] -> a
 
--- ---------------------------------------------------------------------
 
-bar1 :: Module SrcSpanInfo -> [Tree SrcSpan]
-bar1 modu = r
-  where
-    nullTree = Node (SrcSpan "" 0 0 0 0) []
+instance Monoid Layout where
+  mempty = NoChange
 
-    start :: [Tree SrcSpan] -> [Tree SrcSpan]
-    start old = old
+  mappend NoChange NoChange = NoChange
+  mappend NoChange x = x
+  mappend x NoChange = x
+  mappend (Above bo1 ps1 pe1 eo1) (Above bo2 ps2 pe2 eo2)
+    = (Above bo ps pe eo)
+      where
+        (bo,ps) = if ps1 <= ps2 then (bo1,ps1)
+                                else (bo2,ps2)
 
-    r = synthesize [] redf (start `mkQ` bb {- `extQ` letExp -}) modu
+        (eo,pe) = if pe1 >= pe2 then (eo1,pe1)
+                                else (eo2,pe2)
 
-    redf :: [Tree SrcSpan] -> [Tree SrcSpan] -> [Tree SrcSpan]
-    redf [] b = b
-    redf a [] = a
-    redf [(Node s sub)]  old = [(Node s (sub ++ old))]
 
-    -- ends up as GenericQ (SrcSpanInfo -> Tree SrcSpan)
-    bb :: SrcSpanInfo -> [Tree SrcSpan] -> [Tree SrcSpan]
-    bb (SrcSpanInfo ss sss) vv = [Node ss vv]
-
-    letExp :: Exp SrcSpanInfo -> [Tree SrcSpan] -> [Tree SrcSpan]
-    letExp (Let l bs e) vv =
-        case srcInfoPoints l of
-          [letPos,inPos] -> error $ "got let " ++ show (letPos,inPos)
-          _              -> vv
-    letExp _ vv = vv
-
--- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
--- synthesize z o f
-
--- Bottom-up synthesis of a data structure;
---  1st argument z is the initial element for the synthesis;
---  2nd argument o is for reduction of results from subterms;
---  3rd argument f updates the synthesised data according to the given term
-
--- ---------------------------------------------------------------------
-
-bar :: Module SrcSpanInfo -> Tree SrcSpan
-bar modu = r
-  where
-    nullTree = Node (SrcSpan "" 0 0 0 0) []
-
-    start :: Tree SrcSpan -> Tree SrcSpan
-    start old = old
-
-    r = synthesize nullTree redf (start `mkQ` bb) modu
-
-    redf :: Tree SrcSpan -> Tree SrcSpan -> Tree SrcSpan
-    redf (Node s sub)  old = (Node s (sub ++ [old]))
-
-    -- ends up as GenericQ (SrcSpanInfo -> Tree SrcSpan)
-    bb :: SrcSpanInfo -> Tree SrcSpan -> Tree SrcSpan
-    bb (SrcSpanInfo ss sss) (Node s sub) = Node ss (map (\s -> Node s []) sss)
-    -- bb (SrcSpanInfo ss sss) = Node ss (map (\s -> Node s []) sss)
-
--- ---------------------------------------------------------------------
 
 nullSpan :: SrcSpan
 nullSpan = (SrcSpan "" 0 0 0 0)
 
 -- ---------------------------------------------------------------------
-{-
-drawTreeCompact :: Tree SrcSpan -> String
-drawTreeCompact = unlines . drawTreeCompact' 0
-
-drawTreeCompact' :: Int -> Tree SrcSpan -> [String]
-drawTreeCompact' level (Node ss ts0) = ((show level) ++ ":" ++ (show ss))
-                                                          : (concatMap (drawTreeCompact' (level + 1)) ts0)
-
--- ---------------------------------------------------------------------
-
--- | Neat 2-dimensional drawing of a tree.
-drawTreeSrcSpan :: Tree SrcSpan -> String
-drawTreeSrcSpan  = unlines . draw1
-
--- | Neat 2-dimensional drawing of a forest.
-drawForestSrcSpan :: Forest SrcSpan -> String
-drawForestSrcSpan  = unlines . map drawTreeSrcSpan
-
-draw1 :: Tree SrcSpan -> [String]
-draw1 (Node x ts0) = show x : drawSubTrees ts0
-  where
-    drawSubTrees [] = []
-    drawSubTrees [t] =
-        "|" : shift "`- " "   " (draw1 t)
-    drawSubTrees (t:ts) =
-        "|" : shift "+- " "|  " (draw1 t) ++ drawSubTrees ts
-
-    shift first other = zipWith (++) (first : repeat other)
--}
