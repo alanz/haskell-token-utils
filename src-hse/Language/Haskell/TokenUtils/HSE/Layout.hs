@@ -421,6 +421,7 @@ allocTokens' modu = r
     r = synthesize [] redf (start `mkQ` bb
                            -- `extQ` letExp
                            `extQ` match
+                           `extQ` binds
                            ) modu
 
     mergeSubs as bs = as ++ bs
@@ -455,57 +456,6 @@ allocTokens' modu = r
                        where
                          e = Entry ss NoChange []
             )
-{-
-
-Possibilities
-
-equal : discard one
-  -----
-  -----
-
-end together, 2 versions
-  ------- b is sub of a
-   ------
-
-   ------ a is sub of b
-  -------
-
-start together, 2 versions
-  -------- b is sub of a
-  -----
-
-  -----    a is sub of b
-  --------
-
-one fully in another
-
-  ------------- b is sub of a
-    ------
-
-    ------         a is sub of b
-  -------------
-
-
-no overlap a first
-  ------            new span
-          -------
-
-no overlap b first
-            -----  new span
-  ------
-
-
-overlap a first
-  ------    impossible for AST
-    ------
-
-overlap b first
-    -------- impossible for AST
-  --------
-
--}
-
-
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
@@ -523,7 +473,7 @@ overlap b first
               io = FromAlignCol letStart
               (Span start end) = ss2s ss
               eo = FromAlignCol inEnd
-            in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
+            in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) [(makeGroup vv)]]
           _ -> vv
     letExp _ vv = vv
 
@@ -538,9 +488,17 @@ overlap b first
             -- (Span start end) = ss2s ss
             (Span start end) = ss2s bs
             eo = FromAlignCol (0,0)
-          in [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
+          in
+             trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
+             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
           -- in error $ "match called"
         _ -> vv
+
+    binds :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    binds (BDecls  l@(SrcSpanInfo ss _) bs) vv =
+      trace ("binds:BDecls" ++ show ss ++ (concatMap drawTreeCompact vv))
+      vv
+    binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
 -- synthesize z o f
