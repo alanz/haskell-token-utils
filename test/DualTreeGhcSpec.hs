@@ -579,6 +579,8 @@ spec = do
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
+      -- (drawTreeWithToks layout) `shouldBe` ""
+
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 

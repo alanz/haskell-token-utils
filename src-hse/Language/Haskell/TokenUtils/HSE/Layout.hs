@@ -422,6 +422,7 @@ allocTokens' modu = r
                            -- `extQ` letExp
                            `extQ` match
                            `extQ` binds
+                           `extQ` decl
                            ) modu
 
     mergeSubs as bs = as ++ bs
@@ -479,7 +480,7 @@ allocTokens' modu = r
 
     match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     match (Match l _ _ _ Nothing) vv = vv
-    match (Match l@(SrcSpanInfo ss _) _ _ _ (Just (BDecls (SrcSpanInfo bs _) _))) vv =
+    match (Match l@(SrcSpanInfo ss _) name pats rhs (Just (BDecls (SrcSpanInfo bs _) _))) vv =
       case srcInfoPoints l of
         (wherePos:_) ->
           let
@@ -489,16 +490,37 @@ allocTokens' modu = r
             (Span start end) = ss2s bs
             eo = FromAlignCol (0,0)
           in
-             trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
+             -- trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
+             trace ("match:" ++ show (ss,map treeStartEnd vv))
              [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
           -- in error $ "match called"
         _ -> vv
 
     binds :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     binds (BDecls  l@(SrcSpanInfo ss _) bs) vv =
-      trace ("binds:BDecls" ++ show ss ++ (concatMap drawTreeCompact vv))
-      vv
+      let
+        so = FromAlignCol (7,35)
+        (Span start end) = ss2s ss
+        eo = FromAlignCol (1,-39)
+        vv' = case vv of
+         [Node (Entry fss _ _) sub] ->
+           if fss == (sf $ ss2s ss) then sub else vv
+         _ -> vv
+      in
+      -- trace ("binds:BDecls" ++ show ss ++ (concatMap drawTreeCompact vv))
+      trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
+      [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) vv']
     binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
+
+    decl :: Decl SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    decl (FunBind l@(SrcSpanInfo ss _) matches) vv =
+      trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
+      [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+    decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs mbinds) vv =
+      trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
+      [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+    decl _ vv = vv
+
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
 -- synthesize z o f
