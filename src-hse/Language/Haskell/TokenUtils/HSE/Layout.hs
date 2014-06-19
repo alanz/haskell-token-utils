@@ -492,14 +492,15 @@ allocTokens' modu = r
           in
              -- trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
              trace ("match:" ++ show (ss,map treeStartEnd vv))
-             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) vv]
+             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
           -- in error $ "match called"
         _ -> vv
 
     binds :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     binds (BDecls  l@(SrcSpanInfo ss _) bs) vv =
       let
-        so = FromAlignCol (7,35)
+        -- so = FromAlignCol (7,35)
+        so = None
         (Span start end) = ss2s ss
         eo = FromAlignCol (1,-39)
         vv' = case vv of
@@ -509,7 +510,7 @@ allocTokens' modu = r
       in
       -- trace ("binds:BDecls" ++ show ss ++ (concatMap drawTreeCompact vv))
       trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
-      [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) vv']
+      [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) (subTreeOnly vv')]
     binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
     decl :: Decl SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]

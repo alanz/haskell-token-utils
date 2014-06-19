@@ -320,9 +320,9 @@ combineUps (Up sp1 _a1 l1 d1) (Up sp2 _a2 l2 d2) = (Up (sp1 <> sp2) a l (d1 <> d
     st2 = showTokenStream (s1 ++ s2')
     st3 = drop (length st1) st2
     st4 = takeWhile (==' ') st3
-    oo = length (st1++st4)
+    oo  = length (st1++st4)
     coo = c1 + oo
-    o = coo - c2
+    o   = coo - c2
 
     (m,ll) = if (ss1 /= ss2) && (length s1 == 1 && (tokenLen $ head s1) == 0)
           then ([NE.last l1],map (\(Line r c f aa ff s) -> (Line (r+1) (c + o) (f+1) aa ff s)) (NE.toList l2''))

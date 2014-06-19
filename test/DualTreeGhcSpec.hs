@@ -10,6 +10,7 @@ import Data.Maybe
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
+import Language.Haskell.TokenUtils.Pretty
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
@@ -546,8 +547,7 @@ spec = do
       --     ""
 
       let srcTree = layoutTreeToSourceTree layout
-      -- (show srcTree) `shouldBe`
-      --     ""
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -579,15 +579,14 @@ spec = do
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      (drawTreeWithToks layout) `shouldBe` ""
 
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
-      -- (show srcTree) `shouldBe`
-      --     ""
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 

@@ -14,6 +14,7 @@ module Language.Haskell.TokenUtils.Utils
   , splitToksIncComments
   , makeGroup
   , mkGroup
+  , subTreeOnly
   , splitToksForList
   , placeAbove
   , allocList
@@ -252,6 +253,12 @@ makeGroupLayout lay ls = Node (Entry loc lay []) ls
     loc = case ls of
            [] -> sf nullSpan
            _  -> combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
+
+-- ---------------------------------------------------------------------
+
+subTreeOnly :: (IsToken a) => [LayoutTree a] -> [LayoutTree a]
+subTreeOnly [(Node _ sub)] = sub
+subTreeOnly xs = xs
 
 -- ---------------------------------------------------------------------
 
@@ -514,6 +521,7 @@ drawTreeWithToks' level (Node (Deleted sspan _pg eg )  _  )
    = [(showLevel level) ++ ":" ++ (showForestSpan sspan) ++ (show eg) ++ "D"]
 drawTreeWithToks' level (Node (Entry sspan lay toks) ts0)
    = ((showLevel level) ++ ":" ++ (showForestSpan sspan) ++ (showLayout lay) ++ (showFriendlyToks toks))
+--    = ((showLevel level) ++ ":" ++ (showForestSpan sspan) ++ (showLayout lay) ++ (show toks))
        : (concatMap (drawTreeWithToks' (level + 1)) ts0)
 
 showLevel :: Int -> String

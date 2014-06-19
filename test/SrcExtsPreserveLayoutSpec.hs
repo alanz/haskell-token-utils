@@ -39,7 +39,7 @@ spec = do
 
       -- (show modu) `shouldBe` ""
       -- (drawTreeCompact layout) `shouldBe` ""
-      (drawTreeWithToks layout) `shouldBe` ""
+      -- (drawTreeWithToks layout) `shouldBe` ""
 
       {-
       HaRe log of this renaming
@@ -79,9 +79,9 @@ spec = do
       let f5 = replaceTokenForSrcSpan f4 (Span (7,35) (7,37)) (Loc (mkHseSrcSpan (7,35) (7,41)) tok)
 
       -- (drawTreeCompact f5) `shouldBe` ""
+      -- (drawTreeWithToks f5) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree f5
-
       -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource

@@ -447,13 +447,16 @@ spec = do
       let origSource = (showTokenStream toks)
 
       let layout = allocTokens modu toks
+      -- (drawTreeWithToks layout) `shouldBe` ""
+
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
-      -- (show srcTree) `shouldBe`
-      --     ""
+      -- (showPpr srcTree) `shouldBe` ""
+
+      (show $ retrieveLinesFromLayoutTree layout) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
