@@ -31,6 +31,7 @@ import qualified Data.Tree as T
 
 import Language.Haskell.TokenUtils.Types
 
+
 -- ----------
 import Data.Tree.DUAL
 import Data.Semigroup
@@ -39,6 +40,8 @@ import Data.Monoid.Action
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Tree.DUAL.Internal as I
+
+import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -72,9 +75,13 @@ data Alignment = ANone | AVertical
                deriving (Show,Eq)
 
 instance (IsToken a) => Show (Line a) where
-  show (Line r c o f s toks) = "(" ++ show r ++ " " ++ show c ++ " " ++ show o
+  show (Line r c o f s toks) = "(" ++ show r
+          ++ " " ++ show c
+          ++ " " ++ show o
           ++ " " ++ show f
-          ++ " " ++ show s ++ "\"" ++ showTokenStream toks ++ "\")"
+          ++ " " ++ show s
+          -- ++ " " ++ "\"" ++ showTokenStream toks ++ "\")"
+          ++ " " ++ "\"" ++ showFriendlyToks toks ++ "\")"
 
 data Source = SOriginal
             | SAdded
@@ -287,7 +294,9 @@ combineUps (UDeleted d1) (Up sp2 a2 l2 d2) = (Up sp2 a2 l (d1 <> d2))
 
 combineUps (Up sp1 a1 l1 d1) (UDeleted d2) = (Up sp1 a1 l1 (d1 <> d2))
 
-combineUps (Up sp1 _a1 l1 d1) (Up sp2 _a2 l2 d2) = (Up (sp1 <> sp2) a l (d1 <> d2))
+combineUps u1@(Up sp1 _a1 l1 d1) u2@(Up sp2 _a2 l2 d2)
+ = trace ("combineUps:" ++ show (u1,u2))
+  (Up (sp1 <> sp2) a l (d1 <> d2))
   where
     a = ANone
 
@@ -306,6 +315,8 @@ combineUps (Up sp1 _a1 l1 d1) (Up sp2 _a2 l2 d2) = (Up (sp1 <> sp2) a l (d1 <> d
          then NE.fromList $ (NE.init l1) ++ m ++ ll
          else NE.fromList $ (NE.toList l1) ++ rest
 
+    -- PROBLEM: assumes c1 is final addition to the left of the line.
+    --          i.e. tree must be created top down, not bottom up
     s2' = addOffsetToToks (0,c2 - c1) s2
 
     s1' = s1 ++ s2'
@@ -342,6 +353,35 @@ combineUps (Up sp1 _a1 l1 d1) (Up sp2 _a2 l2 d2) = (Up (sp1 <> sp2) a l (d1 <> d
 
 {-
 
+Should end up with
+   [(Line 1 1 0 SOriginal ONone \"module LayoutIn1 where\"),
+    (Line 3 1 0 SOriginal ONone \"--Layout rule applies after 'where','let','do' and 'of'\"),
+    (Line 5 1 0 SOriginal ONone \"--In this Example: rename 'sq' to 'square'.\"),
+    (Line 7 1 0 SOriginal OGroup \"sumSquares x y= square x + square y where square x= x^pow\"),
+    (Line 8 11 0 SOriginal OGroup \"--There is a comment.\"),
+    (Line 9 43 0 SOriginal OGroup \"pow=2\"),
+    (Line 10 1 0 SOriginal ONone \"\")]
+
+But we are getting
+
+   Up (Span (7,12) (9,40)) ANone (
+    (7 12 0 SOriginal OGroup "x y= square x + square y where square x= x^pow") :| [
+    (8 13 0 SOriginal OGroup "--There is a comment."),
+    (9 45 0 SOriginal OGroup "pow=2")]) [])
+
+From
+
+  (Up (Span (7,12) (7,15)) ANone (
+    (7 12 0 SOriginal ONone "x y") :| []) [],
+   Up (Span (7,15) (9,40)) ANone (
+    (7 15 0 SOriginal OGroup "= square x + square y where square x= x^pow") :| [
+    (8 11 0 SOriginal OGroup "--There is a comment."),
+    (9 43 0 SOriginal OGroup "pow=2")]) [])
+
+
+
+
+-----------------------------------------------------
 
 ((((36,23),(41,25)),ITblockComment \" ++AZ++ : hsBinds does not re
 

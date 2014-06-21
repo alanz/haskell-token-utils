@@ -43,6 +43,7 @@ module Language.Haskell.TokenUtils.Types
   , isIgnored
   , isIgnoredNonComment
   , isWhereOrLet
+  , showFriendlyToks
   , HasLoc(..)
   , Allocatable(..)
   ) where
@@ -241,6 +242,9 @@ isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
 isWhereOrLet :: (IsToken a) => a -> Bool
 isWhereOrLet t = isWhere t || isLet t
 
+showFriendlyToks :: IsToken a => [a] -> String
+showFriendlyToks toks = reverse $ dropWhile (=='\n')
+                      $ reverse $ dropWhile (=='\n') $ showTokenStream toks
 
 
 class HasLoc a where
@@ -431,7 +435,5 @@ getLocatedEnd (L l _) = getGhcLocEnd l
 
 getGhcLoc    (Span fm _to) = fm
 getGhcLocEnd (Span _fm to) = to
-
-
 
 

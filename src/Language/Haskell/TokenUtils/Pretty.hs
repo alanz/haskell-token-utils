@@ -96,6 +96,7 @@ instance (IsToken a) => Outputable (Line a) where
                          <+> ppr c <+> ppr o
                          <+> ppr s <+> ppr f
                          <+> text ("\"" ++ (init $ showTokenStream str) ++ "\"")
+                         -- <+> text ("\"" ++ (init $ showFriendlyToks str) ++ "\"")
                          -- <+> text (show str) -- ++AZ++ debug
 
 instance Outputable Source where

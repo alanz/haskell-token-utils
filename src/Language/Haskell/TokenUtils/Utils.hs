@@ -527,7 +527,4 @@ drawTreeWithToks' level (Node (Entry sspan lay toks) ts0)
 showLevel :: Int -> String
 showLevel level = take level (repeat ' ')
 
-showFriendlyToks :: IsToken a => [a] -> String
-showFriendlyToks toks = reverse $ dropWhile (=='\n')
-                      $ reverse $ dropWhile (=='\n') $ showTokenStream toks
 

@@ -1,5 +1,6 @@
 {-# Language MultiParamTypeClasses #-}
 {-# Language FlexibleInstances #-}
+{-# LANGUAGE RankNTypes #-}
 module Language.Haskell.TokenUtils.HSE.Layout
   (
     loadFile
@@ -418,7 +419,9 @@ allocTokens' modu = r
     start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     start old = old
 
-    r = synthesize [] redf (start `mkQ` bb
+    -- r = synthesize [] redf (start `mkQ` bb
+    -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
+    r = synthesizel [] redf (start `mkQ` bb
                            -- `extQ` letExp
                            `extQ` match
                            `extQ` binds
@@ -437,26 +440,28 @@ allocTokens' modu = r
           ass@(as,ae) = spanStartEnd $ fs $ treeStartEnd a
           bss@(bs,be) = spanStartEnd $ fs $ treeStartEnd b
           ss = combineSpans s1 s2
+          ret =
+           case (compare as bs,compare ae be) of
+             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
+
+             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
+
+             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
+
+             (_,_) -> if ae <= bs
+                        then [Node e [a,b]]
+                        else if be <= as
+                          then [Node e [b,a]]
+                          else -- fully nested case
+                            [Node e1 (sub1++[b])] -- should merge subs
+                        where
+                          e = Entry ss NoChange []
+
         in
-         trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2)))
-          (case (compare as bs,compare ae be) of
-            (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
-
-            (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
-            (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
-
-            (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
-            (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
-
-            (_,_) -> if ae <= bs
-                       then [Node e [a,b]]
-                       else if be <= as
-                         then [Node e [b,a]]
-                         else -- fully nested case
-                           [Node e1 (sub1++[b])] -- should merge subs
-                       where
-                         e = Entry ss NoChange []
-            )
+         trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2),(fs $ treeStartEnd (head ret))))
+         ret
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
@@ -491,7 +496,10 @@ allocTokens' modu = r
             eo = FromAlignCol (0,0)
           in
              -- trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
-             trace ("match:" ++ show (ss,map treeStartEnd vv))
+             trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             -- We need to make sure that everything before the binds
+             -- is fully processed in the layout tree before doing the
+             -- binds when processing token layout. Hence the group
              [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
           -- in error $ "match called"
         _ -> vv
@@ -537,6 +545,16 @@ allocTokens' modu = r
 -- foldr :: (b -> a -> a) -> a -> [b] -> a
 -- foldl :: (a -> b -> a) -> a -> [b] -> a
 
+
+-- | Bottom-up synthesis of a data structure;
+--   1st argument z is the initial element for the synthesis;
+--   2nd argument o is for reduction of results from subterms;
+--   3rd argument f updates the synthesised data according to the given term
+--
+synthesizel :: s  -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
+synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
+
+-- ---------------------------------------------------------------------
 
 instance Monoid Layout where
   mempty = NoChange
