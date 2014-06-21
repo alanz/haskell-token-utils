@@ -461,7 +461,9 @@ allocTokens' modu = r
                           e = Entry ss NoChange []
 
         in
-         -- trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2),(fs $ treeStartEnd (head ret))))
+         trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
+                                                   ,(fs $ treeStartEnd b,l2,length sub2)
+                                                   ,(fs $ treeStartEnd (head ret))))
          ret
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
@@ -480,7 +482,10 @@ allocTokens' modu = r
               io = FromAlignCol letStart
               (Span start end) = ss2s ss
               eo = FromAlignCol inEnd
-            in  [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) [(makeGroup vv)]]
+            in
+               trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
+               -- trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+               [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) [(makeGroup vv)]]
           _ -> vv
     letExp _ vv = vv
 
@@ -489,15 +494,20 @@ allocTokens' modu = r
     expr :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     expr (Do l@(SrcSpanInfo ss _) _stmts) vv =
       case srcInfoPoints l of
-        (doPos:_) ->
+        pts@(doPos:fstPos:_) ->
           let
             (Span doStart _doEnd) = ss2s doPos
+            (Span _ ssEnd) = ss2s ss
             io = FromAlignCol doStart
-            (Span start end) = ss2s ss
+            (Span start _) = ss2s fstPos
+            (Span _ end) = ss2s (last pts)
             eo = None -- will be calculated later
           in
-             -- trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+             trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
+             -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             [makeGroup [Node (Entry (sf $ ss2s doPos) NoChange []) [],
+                         Node (Entry (sf $ (Span doStart ssEnd)) (Above io start end eo) []) (fetchSubTrees (tail pts) vv)]]
+        (doPos:_) -> error $ "allocTokens'.expr.Do:missing statements:" ++ show (l,_stmts)
         _ -> vv
 
     expr _ vv = vv
@@ -516,6 +526,7 @@ allocTokens' modu = r
             (Span start end) = ss2s bs
             eo = None -- will be calculated later FromAlignCol (0,0)
           in
+             trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
              -- trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
              [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
         _ -> vv
@@ -537,19 +548,20 @@ allocTokens' modu = r
            if fss == (sf $ ss2s ss) then sub else vv
          _ -> vv
       in
-      -- trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
-      [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) (subTreeOnly vv')]
+        trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
+        -- [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) (subTreeOnly vv')]
+        [Node (Entry (sf $ ss2s ss) NoChange []) (subTreeOnly vv')]
     binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
     -- --------------
 
     decl :: Decl SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     decl (FunBind l@(SrcSpanInfo ss _) matches) vv =
-      -- trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
+      trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs mbinds) vv =
-      -- trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
+      trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     decl _ vv = vv
@@ -577,6 +589,14 @@ allocTokens' modu = r
 --
 synthesizel :: s  -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
 synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
+
+-- ---------------------------------------------------------------------
+
+-- |Given a set of points (of zero width), pull out the largest
+-- subtrees with a matching start point, ensuring no overlap.
+-- This is used to make sure we have the right binds for a do etc.
+fetchSubTrees :: [SrcSpan] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+fetchSubTrees = assert False undefined
 
 -- ---------------------------------------------------------------------
 
