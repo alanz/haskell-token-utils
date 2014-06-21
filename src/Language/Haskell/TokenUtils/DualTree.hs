@@ -295,7 +295,7 @@ combineUps (UDeleted d1) (Up sp2 a2 l2 d2) = (Up sp2 a2 l (d1 <> d2))
 combineUps (Up sp1 a1 l1 d1) (UDeleted d2) = (Up sp1 a1 l1 (d1 <> d2))
 
 combineUps u1@(Up sp1 _a1 l1 d1) u2@(Up sp2 _a2 l2 d2)
- = trace ("combineUps:" ++ show (u1,u2))
+ = -- trace ("combineUps:" ++ show (u1,u2))
   (Up (sp1 <> sp2) a l (d1 <> d2))
   where
     a = ANone

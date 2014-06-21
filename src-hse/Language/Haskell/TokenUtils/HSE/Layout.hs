@@ -324,13 +324,15 @@ hseAllocTokens :: Module SrcSpanInfo -> [Loc TuToken] -> LayoutTree (Loc TuToken
 hseAllocTokens modu toks = r
   where
     ss = allocTokens' modu
-    ss2 = decorate (ghead "hseAllocTokens" ss) toks
+    ss1 = (ghead "hseAllocTokens" ss)
+    ss2 = addEndOffsets ss1 toks
+    ss3 = decorate ss2 toks
     -- r = error $ "foo=" ++ show ss2
     -- r = error $ "foo=" ++ drawTreeCompact (Node nullSpan ss)
     -- r = error $ "foo=" ++ drawForestEntry ss
     -- r = error $ "foo toks=" ++ show toks
     -- r = error $ "foo modu=" ++ show modu
-    r = ss2
+    r = ss3
 
 
 -- ---------------------------------------------------------------------
@@ -414,15 +416,14 @@ Need let/in
 allocTokens' :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
 allocTokens' modu = r
   where
-    nullTree = Node (SrcSpan "" 0 0 0 0) []
-
     start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     start old = old
 
     -- r = synthesize [] redf (start `mkQ` bb
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
     r = synthesizel [] redf (start `mkQ` bb
-                           -- `extQ` letExp
+                           `extQ` letExp
+                           `extQ` expr
                            `extQ` match
                            `extQ` binds
                            `extQ` decl
@@ -434,11 +435,11 @@ allocTokens' modu = r
     redf [] b = b
     redf a [] = a
 
-    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node e2@(Entry s2 l2 []) sub2)]
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
       =
         let
-          ass@(as,ae) = spanStartEnd $ fs $ treeStartEnd a
-          bss@(bs,be) = spanStartEnd $ fs $ treeStartEnd b
+          (as,ae) = spanStartEnd $ fs $ treeStartEnd a
+          (bs,be) = spanStartEnd $ fs $ treeStartEnd b
           ss = combineSpans s1 s2
           ret =
            case (compare as bs,compare ae be) of
@@ -460,14 +461,14 @@ allocTokens' modu = r
                           e = Entry ss NoChange []
 
         in
-         trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2),(fs $ treeStartEnd (head ret))))
+         -- trace (show ((fs $ treeStartEnd a,l1,length sub1),(fs $ treeStartEnd b,l2,length sub2),(fs $ treeStartEnd (head ret))))
          ret
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
     bb :: SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    bb (SrcSpanInfo ss sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+    bb (SrcSpanInfo ss _sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     letExp :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     letExp (Let l@(SrcSpanInfo ss _) bs e) vv =
@@ -483,6 +484,26 @@ allocTokens' modu = r
           _ -> vv
     letExp _ vv = vv
 
+    -- ---------------------------------
+
+    expr :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    expr (Do l@(SrcSpanInfo ss _) _stmts) vv =
+      case srcInfoPoints l of
+        (doPos:_) ->
+          let
+            (Span doStart _doEnd) = ss2s doPos
+            io = FromAlignCol doStart
+            (Span start end) = ss2s ss
+            eo = None -- will be calculated later
+          in
+             -- trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+        _ -> vv
+
+    expr _ vv = vv
+
+    -- ---------------------------------
+
     match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     match (Match l _ _ _ Nothing) vv = vv
     match (Match l@(SrcSpanInfo ss _) name pats rhs (Just (BDecls (SrcSpanInfo bs _) _))) vv =
@@ -493,41 +514,44 @@ allocTokens' modu = r
             io = FromAlignCol whereStart
             -- (Span start end) = ss2s ss
             (Span start end) = ss2s bs
-            eo = FromAlignCol (0,0)
+            eo = None -- will be calculated later FromAlignCol (0,0)
           in
-             -- trace ("match:" ++ show ss ++ (concatMap drawTreeCompact vv))
-             trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             -- We need to make sure that everything before the binds
-             -- is fully processed in the layout tree before doing the
-             -- binds when processing token layout. Hence the group
+             -- trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
              [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
-          -- in error $ "match called"
         _ -> vv
+
+    -- -----------------------
 
     binds :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     binds (BDecls  l@(SrcSpanInfo ss _) bs) vv =
       let
-        -- so = FromAlignCol (7,35)
-        so = None
+        -- TODO: properly calculate `so` and `eo`
+        ro = 0
+        co = 0
+        so = makeOffset ro co
         (Span start end) = ss2s ss
-        eo = FromAlignCol (1,-39)
+        -- eo = FromAlignCol (1,-39)
+        eo = None -- will be added later
         vv' = case vv of
          [Node (Entry fss _ _) sub] ->
            if fss == (sf $ ss2s ss) then sub else vv
          _ -> vv
       in
-      -- trace ("binds:BDecls" ++ show ss ++ (concatMap drawTreeCompact vv))
-      trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
+      -- trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) (subTreeOnly vv')]
     binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
+    -- --------------
+
     decl :: Decl SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     decl (FunBind l@(SrcSpanInfo ss _) matches) vv =
-      trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
+      -- trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+
     decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs mbinds) vv =
-      trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
+      -- trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+
     decl _ vv = vv
 
 

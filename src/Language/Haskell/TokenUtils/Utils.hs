@@ -9,6 +9,7 @@ module Language.Haskell.TokenUtils.Utils
 
   , addEndOffsets
   , calcLastTokenPos
+  , makeOffset
   , makeLeaf
   , makeLeafFromToks
   , splitToksIncComments
@@ -138,6 +139,13 @@ calcLastTokenPos toks = (rt,ct)
     (rt,ct) = case (dropWhile isEmpty (reverse toks)) of
              []    -> (0,0)
              (x:_) -> (tokenRow x,tokenCol x + tokenLen x)
+
+-- ---------------------------------------------------------------------
+
+makeOffset :: RowOffset -> ColOffset -> EndOffset
+makeOffset 0   0 = None
+makeOffset 0  co = SameLine co
+makeOffset ro co = FromAlignCol (ro,co)
 
 -- ---------------------------------------------------------------------
 

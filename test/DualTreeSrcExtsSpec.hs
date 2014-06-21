@@ -281,22 +281,16 @@ spec = do
     it "retrieves the tokens in SourceTree format DupDef.Dd1" $ do
       ParseOk (modu,toks) <- loadFile "./test/testdata/DupDef/Dd1.hs"
 
-      -- let renamed = fromJust $ GHC.tm_renamed_source t
-      -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
-
       let origSource = (showTokenStream toks)
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
-
-      -- (show layout) `shouldBe` ""
 
       -- (show layout) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree layout
 
-      -- (show srcTree) `shouldBe` ""
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -305,23 +299,15 @@ spec = do
     it "retrieves the tokens in SourceTree format Renaming.LayoutIn4" $ do
       ParseOk (modu,toks) <- loadFile "./test/testdata/Renaming/LayoutIn4.hs"
 
-      -- let renamed = fromJust $ GHC.tm_renamed_source t
-      -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
-
       let origSource = (showTokenStream toks)
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
-
-
       -- (show layout) `shouldBe` ""
-      -- (show layout) `shouldBe` ""
+      -- (drawTreeWithToks layout) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree layout
-
-      -- (show srcTree) `shouldBe`
-      --     ""
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -456,7 +442,7 @@ spec = do
       let srcTree = layoutTreeToSourceTree layout
       -- (showPpr srcTree) `shouldBe` ""
 
-      (show $ retrieveLinesFromLayoutTree layout) `shouldBe` ""
+      -- (show $ retrieveLinesFromLayoutTree layout) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 

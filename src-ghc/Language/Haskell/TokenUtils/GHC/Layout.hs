@@ -1308,13 +1308,6 @@ allocLocalBinds (GHC.HsIPBinds (GHC.IPBinds bs _))  toks = r
 
 -- ---------------------------------------------------------------------
 
-makeOffset :: RowOffset -> ColOffset -> EndOffset
-makeOffset 0   0 = None
-makeOffset 0  co = SameLine co
-makeOffset ro co = FromAlignCol (ro,co)
-
--- ---------------------------------------------------------------------
-
 startPosForList :: [GHC.Located a] -> SimpPos
 startPosForList xs = start
   where

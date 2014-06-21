@@ -1,4 +1,4 @@
-module DualTreeSrcExtsSpec (main, spec) where
+module SrcExtsPreserveLayoutSpec (main, spec) where
 
 import           Test.Hspec
 
@@ -84,5 +84,7 @@ spec = do
       let srcTree = layoutTreeToSourceTree f5
       -- (showPpr srcTree) `shouldBe` ""
 
-      (renderSourceTree srcTree) `shouldBe` origSource
+      (renderSourceTree srcTree) `shouldBe` "module LayoutIn1 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'sq' to 'square'.\n\nsumSquares x y= square x + square y where square x= x^pow\n          --There is a comment.\n                                          pow=2\n"
+
+
 

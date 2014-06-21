@@ -410,16 +410,10 @@ spec = do
 
       -- (show layout) `shouldBe` ""
 
-      -- (show layout) `shouldBe` ""
-
       let srcTree = layoutTreeToSourceTree layout
 
-      -- (show srcTree) `shouldBe` ""
+      -- (showPpr srcTree) `shouldBe` ""
 
-{-
-      srcTree `shouldBe`
-          []
--}
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -437,9 +431,8 @@ spec = do
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
+      -- (drawTreeWithToks layout) `shouldBe` ""
 
-
-      -- (show layout) `shouldBe` ""
       -- (show layout) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree layout
@@ -579,7 +572,7 @@ spec = do
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
-      (drawTreeWithToks layout) `shouldBe` ""
+      -- (drawTreeWithToks layout) `shouldBe` ""
 
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
