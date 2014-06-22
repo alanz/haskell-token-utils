@@ -433,12 +433,9 @@ spec = do
       -- (invariant layout) `shouldBe` []
       -- (drawTreeWithToks layout) `shouldBe` ""
 
-      -- (show layout) `shouldBe` ""
-
       let srcTree = layoutTreeToSourceTree layout
 
-      -- (show srcTree) `shouldBe`
-      --     ""
+      -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 

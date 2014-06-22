@@ -319,12 +319,9 @@ spec = do
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
-      -- (show srcTree) `shouldBe`
-      --     ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 

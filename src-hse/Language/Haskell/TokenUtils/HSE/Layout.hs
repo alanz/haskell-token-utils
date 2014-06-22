@@ -22,6 +22,8 @@ import Language.Haskell.Exts.Lexer
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
+import qualified Data.Set as Set
+
 -- import SrcExtsKure
 
 import Debug.Trace
@@ -413,7 +415,8 @@ Need let/in
 
 -- ---------------------------------------------------------------------
 
-allocTokens' :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
+-- allocTokens' :: Module SrcSpanInfo -> [LayoutTree (Loc TuToken)]
+allocTokens' :: Data a => a -> [LayoutTree (Loc TuToken)]
 allocTokens' modu = r
   where
     start :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
@@ -427,46 +430,9 @@ allocTokens' modu = r
                            `extQ` match
                            `extQ` binds
                            `extQ` decl
+                           `extQ` stmt
                            ) modu
 
-    mergeSubs as bs = as ++ bs
-
-    redf :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    redf [] b = b
-    redf a [] = a
-
-    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
-      =
-        let
-          (as,ae) = spanStartEnd $ fs $ treeStartEnd a
-          (bs,be) = spanStartEnd $ fs $ treeStartEnd b
-          ss = combineSpans s1 s2
-          ret =
-           case (compare as bs,compare ae be) of
-             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
-
-             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
-             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
-
-             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
-             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
-
-             (_,_) -> if ae <= bs
-                        then [Node e [a,b]]
-                        else if be <= as
-                          then [Node e [b,a]]
-                          else -- fully nested case
-                            [Node e1 (sub1++[b])] -- should merge subs
-                        where
-                          e = Entry ss NoChange []
-
-        in
-         trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
-                                                   ,(fs $ treeStartEnd b,l2,length sub2)
-                                                   ,(fs $ treeStartEnd (head ret))))
-         ret
-
-    redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
     bb :: SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
@@ -492,7 +458,7 @@ allocTokens' modu = r
     -- ---------------------------------
 
     expr :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    expr (Do l@(SrcSpanInfo ss _) _stmts) vv =
+    expr (Do l@(SrcSpanInfo ss _) stmts) vv =
       case srcInfoPoints l of
         pts@(doPos:fstPos:_) ->
           let
@@ -502,12 +468,13 @@ allocTokens' modu = r
             (Span start _) = ss2s fstPos
             (Span _ end) = ss2s (last pts)
             eo = None -- will be calculated later
+            subs = concatMap allocTokens' stmts
           in
              trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
              -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
              [makeGroup [Node (Entry (sf $ ss2s doPos) NoChange []) [],
-                         Node (Entry (sf $ (Span doStart ssEnd)) (Above io start end eo) []) (fetchSubTrees (tail pts) vv)]]
-        (doPos:_) -> error $ "allocTokens'.expr.Do:missing statements:" ++ show (l,_stmts)
+                         Node (Entry (sf $ (Span doStart ssEnd)) (Above io start end eo) []) subs]]
+        (doPos:_) -> error $ "allocTokens'.expr.Do:missing statements:" ++ show (l,stmts)
         _ -> vv
 
     expr _ vv = vv
@@ -560,11 +527,85 @@ allocTokens' modu = r
       trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
-    decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs mbinds) vv =
-      trace ("decl:PatBind" ++ show (ss, map treeStartEnd vv))
-      [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+    decl (PatBind   (SrcSpanInfo _  _) _    _     _    Nothing) vv = vv
+    decl (PatBind l@(SrcSpanInfo ss _) _pat _mtyp _rhs (Just (BDecls (SrcSpanInfo bs _) _))) vv =
+      case srcInfoPoints l of
+        (wherePos:_) ->
+          let
+            (Span whereStart _whereEnd) = ss2s wherePos
+            io = FromAlignCol whereStart
+            (Span start end) = ss2s bs
+            eo = None -- will be calculated later FromAlignCol (0,0)
+          in
+             trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
+             -- trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+        _ -> vv
 
     decl _ vv = vv
+
+    -- --------------
+
+    stmt :: Stmt SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    stmt (LetStmt l@(SrcSpanInfo ss _) _binds) vv =
+      case srcInfoPoints l of
+        pts@(letPos:_) ->
+          let
+            (Span letStart _letEnd) = ss2s letPos
+            (Span _ ssEnd) = ss2s ss
+            io = FromAlignCol letStart
+            (Span start end) = fs $ treeStartEnd (ghead "stmt.letStmt" (subTreeOnly vv)) -- ss2s fstPos
+            eo = None -- will be calculated later
+          in
+             trace ("stmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
+             -- trace ("dstmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             [makeGroup [Node (Entry (sf $ ss2s letPos) NoChange []) [],
+                         Node (Entry (sf $ (Span letStart ssEnd)) (Above io start end eo) []) (subTreeOnly vv)]]
+        _ -> error $ "allocTokens'.stmt:LetStmt:missing statements:" ++ show (l,_binds)
+        -- _ -> vv
+
+    stmt _ vv = vv
+
+    -- --------------
+
+    mergeSubs as bs = as ++ bs
+
+    redf :: [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    redf [] b = b
+    redf a [] = a
+
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
+      =
+        let
+          (as,ae) = spanStartEnd $ fs $ treeStartEnd a
+          (bs,be) = spanStartEnd $ fs $ treeStartEnd b
+          ss = combineSpans s1 s2
+          ret =
+           case (compare as bs,compare ae be) of
+             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
+
+             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
+
+             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
+
+             (_,_) -> if ae <= bs
+                        then [Node e [a,b]]
+                        else if be <= as
+                          then [Node e [b,a]]
+                          else -- fully nested case
+                            [Node e1 (sub1++[b])] -- should merge subs
+                        where
+                          e = Entry ss NoChange []
+
+        in
+         trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
+                                                   ,(fs $ treeStartEnd b,l2,length sub2)
+                                                   ,(fs $ treeStartEnd (head ret))))
+         ret
+
+    redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
 
 -- synthesize :: s -> (t -> s -> s) -> GenericQ (s -> t) -> GenericQ t
@@ -589,14 +630,6 @@ allocTokens' modu = r
 --
 synthesizel :: s  -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
 synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
-
--- ---------------------------------------------------------------------
-
--- |Given a set of points (of zero width), pull out the largest
--- subtrees with a matching start point, ensuring no overlap.
--- This is used to make sure we have the right binds for a do etc.
-fetchSubTrees :: [SrcSpan] -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-fetchSubTrees = assert False undefined
 
 -- ---------------------------------------------------------------------
 

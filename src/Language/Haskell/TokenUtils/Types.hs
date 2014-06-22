@@ -255,7 +255,7 @@ data Located e = L Span e
                deriving Show
 
 data Span = Span (Row,Col) (Row,Col)
-          deriving (Show,Eq)
+          deriving (Show,Eq,Ord)
 
 nullSpan :: Span
 nullSpan = Span (0,0) (0,0)
