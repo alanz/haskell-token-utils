@@ -1098,7 +1098,7 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Renaming/Utils.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)

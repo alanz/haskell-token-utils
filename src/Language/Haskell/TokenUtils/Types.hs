@@ -22,6 +22,8 @@ module Language.Haskell.TokenUtils.Types
   , nullSpan
   , TokenLayout
   , LayoutTree
+  , forestSpanFromEntry
+  , putForestSpanInEntry
   , forestSpanToSimpPos
   , forestSpanVersionSet
   , treeStartEnd
@@ -51,7 +53,6 @@ module Language.Haskell.TokenUtils.Types
 import Control.Exception
 import Data.Bits
 import Data.List
-import Data.Monoid
 import Data.Tree
 
 import qualified Data.Map as Map
@@ -89,11 +90,11 @@ instance (IsToken a) => Eq (Entry a) where
   (==) _ _ = False
 
 instance HasLoc (Entry a) where
-  getLoc (Entry fs _ _) = getLoc fs
-  getLoc (Entry fs _ _) = getLoc fs
+  getLoc (Entry fs _ _)   = getLoc fs
+  getLoc (Deleted fs _ _) = getLoc fs
 
-  getLocEnd (Entry fs _ _) = getLocEnd fs
-  getLocEnd (Entry fs _ _) = getLocEnd fs
+  getLocEnd (Entry fs _ _)   = getLocEnd fs
+  getLocEnd (Deleted fs _ _) = getLocEnd fs
 
 
 type RowOffset = Int
@@ -427,6 +428,7 @@ increaseSrcSpan (lineAmount,colAmount) posToken
 
 -- ---------------------------------------------------------------------
 
+{-
 getLocatedStart :: Located t -> (Int, Int)
 getLocatedStart (L l _) = getGhcLoc l
 
@@ -435,5 +437,5 @@ getLocatedEnd (L l _) = getGhcLocEnd l
 
 getGhcLoc    (Span fm _to) = fm
 getGhcLocEnd (Span _fm to) = to
-
+-}
 

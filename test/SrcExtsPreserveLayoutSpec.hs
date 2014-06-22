@@ -34,12 +34,12 @@ spec = do
     it "preserves layout in where clause with renaming length change" $ do
       ParseOk (modu,toks) <- loadFile "./test/testdata/Renaming/LayoutIn1.hs"
 
-      let origSource = (showTokenStream toks)
-      let layout = allocTokens modu toks
+      -- let origSource = (showTokenStream toks)
+      let layoutTree = allocTokens modu toks
 
       -- (show modu) `shouldBe` ""
-      -- (drawTreeCompact layout) `shouldBe` ""
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      -- (drawTreeCompact layoutTree) `shouldBe` ""
+      -- (drawTreeWithToks layoutTree) `shouldBe` ""
 
       {-
       HaRe log of this renaming
@@ -67,7 +67,7 @@ spec = do
       let tok = (T (VarId "square"))
       let tok1 = Loc (mkHseSrcSpan (7,17) (7,23)) tok
       let ss1 = Span (7,17) (7,19)
-      let f2 = replaceTokenForSrcSpan layout ss1 tok1
+      let f2 = replaceTokenForSrcSpan layoutTree ss1 tok1
 
       -- replaceToken test/testdata/Renaming/LayoutIn1.hs:7:24-25:(((False,0,0,7),24),((False,0,0,7),26))((((7,24),(7,30)),ITvarid "square"),"square")
       let f3 = replaceTokenForSrcSpan f2 (Span (7,24) (7,26)) (Loc (mkHseSrcSpan (7,24) (7,30)) tok)

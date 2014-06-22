@@ -2,7 +2,6 @@ module DualTreeSrcExtsSpec (main, spec) where
 
 import           Test.Hspec
 
-import Data.Maybe
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
@@ -40,14 +39,14 @@ spec = do
 
       -- (show modu) `shouldBe` ""
 
-      let layout = allocTokens modu toks
-      -- (show layout) `shouldBe` ""
-      -- (drawTreeWithToks layout) `shouldBe` ""
-      -- (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      -- (show layoutTree) `shouldBe` ""
+      -- (drawTreeWithToks layoutTree) `shouldBe` ""
+      -- (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
       -- (showPpr srcTree) `shouldBe` ""
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -64,13 +63,13 @@ spec = do
 
       (showTokenStream toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n        let x = 1\n            y = 2\n        x+y\n"
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --    ""
 
@@ -86,12 +85,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -105,13 +104,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -128,13 +127,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -150,13 +149,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -172,14 +171,14 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 {-
       srcTree `shouldBe`
           []
@@ -196,13 +195,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -219,11 +218,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -240,13 +239,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -263,13 +262,13 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (show srcTree) `shouldBe`
       --     ""
@@ -283,12 +282,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
 
-      -- (show layout) `shouldBe` ""
+      -- (show layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       -- (showPpr srcTree) `shouldBe` ""
 
@@ -303,11 +302,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (drawTreeWithToks layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
@@ -319,11 +318,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -335,11 +334,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -353,14 +352,14 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (drawTreeCompact layout) `shouldBe`
+      -- (drawTreeCompact layoutTree) `shouldBe`
       --     ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -373,14 +372,14 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (drawTreeCompact layout) `shouldBe`
+      -- (drawTreeCompact layoutTree) `shouldBe`
       --     ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -393,14 +392,14 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      -- (drawTreeCompact layout) `shouldBe`
+      -- (drawTreeCompact layoutTree) `shouldBe`
       --     ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -413,11 +412,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -430,17 +429,17 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      let layoutTree = allocTokens modu toks
+      -- (drawTreeWithToks layoutTree) `shouldBe` ""
 
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showPpr srcTree) `shouldBe` ""
 
-      -- (show $ retrieveLinesFromLayoutTree layout) `shouldBe` ""
+      -- (show $ retrieveLinesFromLayoutTree layoutTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
 
@@ -451,12 +450,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -470,11 +469,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -488,12 +487,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -506,11 +505,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -524,11 +523,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -542,11 +541,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -559,11 +558,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -577,11 +576,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (drawTreeWithToks layoutTree) `shouldBe` ""
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showPpr srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
@@ -595,11 +594,11 @@ spec = do
       (showTokenStream toks) `shouldBe` "module Empty where\n"
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
       -- (show $ retrieveLines srcTree) `shouldBe` ""
 
@@ -612,12 +611,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (show srcTree) `shouldBe`
       --     ""
 
@@ -630,11 +629,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -648,11 +647,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -666,11 +665,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -687,11 +686,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -708,11 +707,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -729,11 +728,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -753,12 +752,12 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      (invariant layoutTree) `shouldBe` []
 
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -780,11 +779,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -803,11 +802,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -826,11 +825,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -848,11 +847,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -870,11 +869,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""
@@ -889,11 +888,11 @@ spec = do
 
       let origSource = (showTokenStream toks)
 
-      let layout = allocTokens modu toks
-      (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      let layoutTree = allocTokens modu toks
+      (show $ retrieveTokens layoutTree) `shouldBe` (show toks)
+      -- (invariant layoutTree) `shouldBe` []
 
-      let srcTree = layoutTreeToSourceTree layout
+      let srcTree = layoutTreeToSourceTree layoutTree
       -- (showGhc srcTree) `shouldBe` ""
 
       -- (show $ retrieveLines srcTree) `shouldBe` ""

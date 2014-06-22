@@ -17,6 +17,7 @@ import qualified Data.Tree.Zipper as Z
 
 -- ---------------------------------------------------------------------
 
+invariant :: a
 invariant = assert False undefined
 
 -- ---------------------------------------------------------------------

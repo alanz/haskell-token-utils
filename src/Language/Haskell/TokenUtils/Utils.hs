@@ -62,8 +62,8 @@ import Control.Exception
 import Data.List
 import Data.Tree
 
-import Language.Haskell.TokenUtils.DualTree
-import Language.Haskell.TokenUtils.Layout
+-- import Language.Haskell.TokenUtils.DualTree
+-- import Language.Haskell.TokenUtils.Layout
 -- import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 

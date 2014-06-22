@@ -9,20 +9,16 @@ module Language.Haskell.TokenUtils.HSE.Layout
   , TuToken(..)
   ) where
 
-import Control.Exception
-import Control.Monad
+-- import Control.Exception
 import Data.Generics hiding (GT)
 import Data.List
 import Data.Monoid
 import Data.Tree
 
 import Language.Haskell.Exts.Annotated
-import Language.Haskell.Exts.Lexer
 
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
-
-import qualified Data.Set as Set
 
 -- import SrcExtsKure
 
@@ -38,15 +34,15 @@ data TuToken = T Token | C Comment
              deriving (Show,Eq)
 
 loadFile :: FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
-loadFile fileName = loadFileWithMode defaultParseMode fileName
+loadFile file = loadFileWithMode defaultParseMode file
 
 templateHaskellMode :: ParseMode
 templateHaskellMode
   = defaultParseMode { extensions = (EnableExtension TemplateHaskell):(extensions defaultParseMode)}
 
 loadFileWithMode :: ParseMode -> FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
-loadFileWithMode parseMode fileName = do
-  src <- readFile fileName
+loadFileWithMode parseMode file = do
+  src <- readFile file
   let mtoks = lexTokenStream src
   let res = case parseFileContentsWithComments parseMode src of
               ParseOk (modu,comments) -> case mtoks of
@@ -74,7 +70,8 @@ mergeToksAndComments toks comments = go toks comments
           then tokToTu ht : go ts (hc:cs)
           else commentToTu hc : go (ht:ts) cs
 
-t = loadFile "../test/testdata/Layout/LetExpr.hs"
+-- tf :: IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
+-- tf = loadFile "../test/testdata/Layout/LetExpr.hs"
 
 -- ---------------------------------------------------------------------
 
@@ -83,7 +80,7 @@ instance IsToken (Loc TuToken) where
   putSpan (Loc _ss v) s = Loc (s2ss s) v
 
   tokenLen (Loc l (T t)) = hseTokenLen (Loc l t)
-  tokenLen (Loc l (C (Comment _ _ s))) = length s -- beware of newlines
+  tokenLen (Loc _l (C (Comment _ _ s))) = length s -- beware of newlines
 
   isComment (Loc _ (C _)) = True
   isComment _ = False
@@ -261,7 +258,7 @@ showToken' t = case t of
   GENERATED         -> "{-# GENERATED"
   CORE              -> "{-# CORE"
   UNPACK            -> "{-# UNPACK"
-  OPTIONS (mt,s)    -> "{-# OPTIONS" ++ maybe "" (':':) mt ++ " ..."
+  OPTIONS (mt,_s)   -> "{-# OPTIONS" ++ maybe "" (':':) mt ++ " ..."
 --  CFILES  s         -> "{-# CFILES ..."
 --  INCLUDE s         -> "{-# INCLUDE ..."
   LANGUAGE          -> "{-# LANGUAGE"
@@ -349,21 +346,21 @@ decorate tree toks = go toks tree
         -- b = map (\t -> let f = treeStartEnd t in (getLoc f, getLocEnd f)) subs
 
         doOne :: ([Loc TuToken],[LayoutTree (Loc TuToken)]) -> LayoutTree (Loc TuToken) -> ([Loc TuToken],[LayoutTree (Loc TuToken)])
-        doOne (ts1,acc) tree = (ts1',acc')
+        doOne (ts1,acc) tree1 = (ts1',acc')
           where
-            ss = treeStartEnd tree
+            ss = treeStartEnd tree1
             (before,middle,after) = splitToksIncComments (getLoc ss,getLocEnd ss) ts1
             ts1' = after
-            tree' = case tree of
+            tree' = case tree1 of
               Node (Entry ss1 lo []) [] -> [Node (Entry ss1 lo middle) []]
-              _ -> [go middle tree]
+              _ -> [go middle tree1]
             acc' = acc ++ makeLeafFromToks before ++ tree'
 
         (end,subs') = foldl' doOne (ts,[]) subs
         -- (end,subs') = doOne (ts,[]) (head subs)
         subs'' = subs' ++ makeLeafFromToks end
 
-    go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
+    -- go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
 
 
 -- ---------------------------------------------------------------------
@@ -428,7 +425,7 @@ allocTokens' modu = r
                            `extQ` letExp
                            `extQ` expr
                            `extQ` match
-                           `extQ` binds
+                           `extQ` bind
                            `extQ` decl
                            `extQ` stmt
                            ) modu
@@ -439,33 +436,31 @@ allocTokens' modu = r
     bb (SrcSpanInfo ss _sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     letExp :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    letExp (Let l@(SrcSpanInfo ss _) bs e) vv =
+    letExp (Let l@(SrcSpanInfo ss _) _bs _e) vv =
         case srcInfoPoints l of
           [letPos,inPos] ->
             let
-              (Span letStart letEnd) = ss2s letPos
-              (Span inStart inEnd)   = ss2s inPos
+              (Span letStart _letEnd) = ss2s letPos
+              (Span _inStart inEnd)   = ss2s inPos
               io = FromAlignCol letStart
-              (Span start end) = ss2s ss
+              (Span lstart lend) = ss2s ss
               eo = FromAlignCol inEnd
             in
                -- trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
-               [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) [(makeGroup vv)]]
+               [Node (Entry (sf $ ss2s ss) (Above io lstart lend eo) []) [(makeGroup vv)]]
           _ -> vv
     letExp _ vv = vv
 
     -- ---------------------------------
 
     expr :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    expr (Do l@(SrcSpanInfo ss _) stmts) vv =
+    expr (Do l@(SrcSpanInfo _ss _) stmts) vv =
       case srcInfoPoints l of
-        pts@(doPos:fstPos:_) ->
+        (doPos:_) ->
           let
             (Span doStart _doEnd) = ss2s doPos
-            (Span _ ssEnd) = ss2s ss
+            -- (Span _ ssEnd) = ss2s ss
             io = FromAlignCol doStart
-            -- (Span start _) = ss2s fstPos
-            -- (Span _ end) = ss2s (last pts)
             (Span lstart lend) = forestSpanToSrcSpan $ makeSpanFromTrees subs
 
             eo = None -- will be calculated later
@@ -474,7 +469,6 @@ allocTokens' modu = r
              -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
              [makeGroup [Node (Entry (sf $ ss2s doPos) NoChange []) [],
                          Node (Entry (sf $ (Span lstart lend)) (Above io lstart lend eo) []) subs]]
-        (doPos:_) -> error $ "allocTokens'.expr.Do:missing statements:" ++ show (l,stmts)
         _ -> vv
 
     expr _ vv = vv
@@ -482,9 +476,10 @@ allocTokens' modu = r
     -- ---------------------------------
 
     match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    match (Match l@(SrcSpanInfo ss _) name pats rhs mWhere) vv =
+    match (InfixMatch l@(SrcSpanInfo ss _) pat name pats rhs mWhere) vv = vv
+    match (Match l@(SrcSpanInfo _ss _) fname pats rhs mWhere) _vv =
       let
-        treeName = allocTokens' name
+        treeName = allocTokens' fname
         treePats = allocTokens' pats
         treeRhs  = subTreeOnly (allocTokens' rhs)
         treeWhereClause = case mWhere of
@@ -495,8 +490,9 @@ allocTokens' modu = r
               treeSubDecls = subTreeOnly (allocTokens' bd)
               treeDecls = [makeGroupLayout (Above io lstart lend eo) treeSubDecls]
               (Span lstart lend) = fs $ makeSpanFromTrees treeSubDecls
-              (Span whereStart whereEnd) = ss2s wherePos
+              (Span whereStart _whereEnd) = ss2s wherePos
               io = FromAlignCol whereStart
+          Just (IPBinds l binds) -> []
           Nothing -> []
         -- (Span start end) = ss2s ss
         -- (Span start end) = ss2s bs
@@ -510,31 +506,31 @@ allocTokens' modu = r
 
     -- -----------------------
 
-    binds :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    binds (BDecls  l@(SrcSpanInfo ss _) bs) vv =
+    bind :: Binds SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
+    bind (BDecls  (SrcSpanInfo _ss _) bs) _vv =
       let
         -- TODO: properly calculate `so` and `eo`
-        ro = 0
-        co = 0
-        so = makeOffset ro co
-        (Span start end) = ss2s ss
+        -- ro = 0
+        -- co = 0
+        -- so = makeOffset ro co
+        -- (Span start end) = ss2s ss
         -- eo = FromAlignCol (1,-39)
-        eo = None -- will be added later
-        vv' = case vv of
-         [Node (Entry fss _ _) sub] ->
-           if fss == (sf $ ss2s ss) then sub else vv
-         _ -> vv
+        -- eo = None -- will be added later
+        -- vv' = case vv of
+        --  [Node (Entry fss _ _) sub] ->
+        --    if fss == (sf $ ss2s ss) then sub else vv
+        --  _ -> vv
         subs = concatMap allocTokens' bs
 
       in
         -- trace ("binds:BDecls" ++ show (ss, map treeStartEnd subs))
         [makeGroup subs]
-    binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
+    bind (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
     -- --------------
 
     decl :: Decl SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    decl (FunBind l@(SrcSpanInfo ss _) matches) vv =
+    decl (FunBind (SrcSpanInfo _ss _) matches) _vv =
       let
         subs = concatMap allocTokens' matches
       in
@@ -542,7 +538,7 @@ allocTokens' modu = r
         [makeGroup subs]
 
     decl (PatBind   (SrcSpanInfo _  _) _    _     _    Nothing) vv = vv
-    decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs (Just bd@(BDecls (SrcSpanInfo bs _) _))) vv =
+    decl (PatBind l@(SrcSpanInfo _ss _) pat mtyp rhs (Just bd@(BDecls (SrcSpanInfo _bs _) _))) vv =
       case srcInfoPoints l of
         (wherePos:_) ->
           let
@@ -570,14 +566,12 @@ allocTokens' modu = r
     -- --------------
 
     stmt :: Stmt SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    stmt (LetStmt l@(SrcSpanInfo ss _) _binds) vv =
+    stmt (LetStmt l@(SrcSpanInfo _ss _) _binds) vv =
       case srcInfoPoints l of
-        pts@(letPos:_) ->
+        (letPos:_) ->
           let
             (Span letStart _letEnd) = ss2s letPos
-            (Span _ ssEnd) = ss2s ss
             io = FromAlignCol letStart
-            -- (Span start end) = fs $ treeStartEnd (ghead "stmt.letStmt" (subTreeOnly vv)) -- ss2s fstPos
             (Span lstart lend) = fs $ makeSpanFromTrees (subTreeOnly vv)
 
             eo = None -- will be calculated later
@@ -622,7 +616,7 @@ allocTokens' modu = r
                             [Node e1 (sub1++[b])] -- should merge subs
                         where
                           e = Entry ss NoChange []
-          (Node (Entry _ lr []) _) = head ret
+          (Node (Entry _ _lr []) _) = head ret
 
         in
          {-
@@ -677,7 +671,7 @@ instance Monoid Layout where
 
 
 
-nullSpan :: SrcSpan
-nullSpan = (SrcSpan "" 0 0 0 0)
+-- nullSpan :: SrcSpan
+-- nullSpan = (SrcSpan "" 0 0 0 0)
 
 -- ---------------------------------------------------------------------
