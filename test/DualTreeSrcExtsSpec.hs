@@ -299,11 +299,13 @@ spec = do
     it "retrieves the tokens in SourceTree format Renaming.LayoutIn4" $ do
       ParseOk (modu,toks) <- loadFile "./test/testdata/Renaming/LayoutIn4.hs"
 
+      -- (show modu) `shouldBe` ""
+
       let origSource = (showTokenStream toks)
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      (drawTreeWithToks layout) `shouldBe` ""
+      -- (drawTreeWithToks layout) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree layout
       -- (showPpr srcTree) `shouldBe` ""

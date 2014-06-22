@@ -66,6 +66,7 @@ test-suite spec
     , containers
     , directory
     , hspec
+    , rosezipper
 
     , dual-tree
     , semigroups

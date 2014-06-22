@@ -449,8 +449,7 @@ allocTokens' modu = r
               (Span start end) = ss2s ss
               eo = FromAlignCol inEnd
             in
-               trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
-               -- trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+               -- trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
                [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) [(makeGroup vv)]]
           _ -> vv
     letExp _ vv = vv
@@ -472,8 +471,7 @@ allocTokens' modu = r
             eo = None -- will be calculated later
             subs = concatMap allocTokens' stmts
           in
-             trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
-             -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
+             -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
              [makeGroup [Node (Entry (sf $ ss2s doPos) NoChange []) [],
                          Node (Entry (sf $ (Span lstart lend)) (Above io lstart lend eo) []) subs]]
         (doPos:_) -> error $ "allocTokens'.expr.Do:missing statements:" ++ show (l,stmts)
@@ -484,23 +482,31 @@ allocTokens' modu = r
     -- ---------------------------------
 
     match :: Match SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    match (Match l _ _ _ Nothing) vv = vv
-    match (Match l@(SrcSpanInfo ss _) name pats rhs (Just (BDecls (SrcSpanInfo bs _) _))) vv =
-      case srcInfoPoints l of
-        (wherePos:_) ->
-          let
-            -- TODO: treat the same as a PatBind
-            (Span whereStart whereEnd) = ss2s wherePos
-            io = FromAlignCol whereStart
-            -- (Span start end) = ss2s ss
-            (Span start end) = ss2s bs
-            eo = None -- will be calculated later FromAlignCol (0,0)
-          in
-             trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
-             -- trace ("match:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
-        _ -> error $ "redf.match:wtf: " ++ show vv
-        -- _ -> vv
+    match (Match l@(SrcSpanInfo ss _) name pats rhs mWhere) vv =
+      let
+        treeName = allocTokens' name
+        treePats = allocTokens' pats
+        treeRhs  = subTreeOnly (allocTokens' rhs)
+        treeWhereClause = case mWhere of
+          (Just bd@(BDecls (SrcSpanInfo _bs _) _)) -> [makeGroup (treeWhere ++ treeDecls)]
+            where
+              wherePos = ghead "redf.match" (srcInfoPoints l)
+              treeWhere = [Node (Entry (sf $ ss2s wherePos) NoChange []) [] ]
+              treeSubDecls = subTreeOnly (allocTokens' bd)
+              treeDecls = [makeGroupLayout (Above io lstart lend eo) treeSubDecls]
+              (Span lstart lend) = fs $ makeSpanFromTrees treeSubDecls
+              (Span whereStart whereEnd) = ss2s wherePos
+              io = FromAlignCol whereStart
+          Nothing -> []
+        -- (Span start end) = ss2s ss
+        -- (Span start end) = ss2s bs
+        eo = None -- will be calculated later FromAlignCol (0,0)
+        subs = treeName ++ treePats ++ treeRhs ++ treeWhereClause
+
+      in
+         -- trace ("match:" ++ show (ss,map treeStartEnd subs))
+         [makeGroup subs]
+
 
     -- -----------------------
 
@@ -521,9 +527,7 @@ allocTokens' modu = r
         subs = concatMap allocTokens' bs
 
       in
-        trace ("binds:BDecls" ++ show (ss, map treeStartEnd vv))
-        -- [Node (Entry (sf $ ss2s ss) (Above so start end eo) []) (subTreeOnly vv')]
-        -- [Node (Entry (sf $ ss2s ss) NoChange []) (subTreeOnly vv')]
+        -- trace ("binds:BDecls" ++ show (ss, map treeStartEnd subs))
         [makeGroup subs]
     binds (IPBinds l@(SrcSpanInfo ss _) bs) vv = vv
 
@@ -534,9 +538,7 @@ allocTokens' modu = r
       let
         subs = concatMap allocTokens' matches
       in
-        trace ("decl:FunBind" ++ show (ss, map treeStartEnd vv))
-        -- [Node (Entry (sf $ ss2s ss) NoChange []) vv]
-        -- [makeGroup $ subTreeOnly vv]
+        -- trace ("decl:FunBind" ++ show (ss, map treeStartEnd subs))
         [makeGroup subs]
 
     decl (PatBind   (SrcSpanInfo _  _) _    _     _    Nothing) vv = vv
@@ -558,10 +560,7 @@ allocTokens' modu = r
             eo = None -- will be calculated later FromAlignCol (0,0)
             subs = treePat ++ treeType ++ treeRhs ++ treeWhereClause
           in
-             trace ("decl:patBind:" ++ show (ss))
-             -- trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
-             -- trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             -- [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+             -- trace ("decl:patBind:" ++ show (ss))
              [makeGroup subs]
 
         _ -> vv
@@ -583,10 +582,7 @@ allocTokens' modu = r
 
             eo = None -- will be calculated later
           in
-             trace ("stmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
-             -- trace ("dstmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             -- [makeGroup [Node (Entry (sf $ ss2s letPos) NoChange []) [],
-             --             Node (Entry (sf $ (Span letStart ssEnd)) (Above io lstart lend eo) []) (subTreeOnly vv)]]
+             -- trace ("stmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
              [makeGroup [Node (Entry (sf $ ss2s letPos) NoChange []) [],
                          makeGroupLayout (Above io lstart lend eo) (subTreeOnly vv)]]
         _ -> error $ "allocTokens'.stmt:LetStmt:missing statements:" ++ show (l,_binds)
@@ -623,16 +619,17 @@ allocTokens' modu = r
                         else if be <= as
                           then [Node e [b,a]]
                           else -- fully nested case
-                            trace ("redf:fully nested")
                             [Node e1 (sub1++[b])] -- should merge subs
                         where
                           e = Entry ss NoChange []
           (Node (Entry _ lr []) _) = head ret
 
         in
+         {-
          trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
                                                    ,(fs $ treeStartEnd b,l2,length sub2)
                                                    ,(fs $ treeStartEnd (head ret),lr)))
+         -}
          ret
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)
