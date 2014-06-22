@@ -528,18 +528,29 @@ allocTokens' modu = r
       [Node (Entry (sf $ ss2s ss) NoChange []) vv]
 
     decl (PatBind   (SrcSpanInfo _  _) _    _     _    Nothing) vv = vv
-    decl (PatBind l@(SrcSpanInfo ss _) _pat _mtyp _rhs (Just (BDecls (SrcSpanInfo bs _) _))) vv =
+    decl (PatBind l@(SrcSpanInfo ss _) pat mtyp rhs (Just bd@(BDecls (SrcSpanInfo bs _) _))) vv =
       case srcInfoPoints l of
         (wherePos:_) ->
           let
+            treePat  = allocTokens' pat
+            treeType = allocTokens' mtyp
+            treeRhs  = allocTokens' rhs
+            treeWhereClause = [makeGroup (treeWhere ++ treeDecls)]
+              where
+                treeWhere = [Node (Entry (sf $ ss2s wherePos) NoChange []) [] ]
+                treeDecls = [makeGroupLayout (Above io start end eo) (allocTokens' bd)]
             (Span whereStart _whereEnd) = ss2s wherePos
             io = FromAlignCol whereStart
             (Span start end) = ss2s bs
             eo = None -- will be calculated later FromAlignCol (0,0)
           in
-             trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
+             trace ("decl:patBind:" ++ show (ss,(start,end)))
+             -- trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
              -- trace ("decl:patBind:" ++ show (ss,map treeStartEnd (subTreeOnly vv),drawTreeCompact (head vv)))
-             [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+             -- [Node (Entry (sf $ ss2s ss) (Above io start end eo) []) (subTreeOnly vv)]
+             [Node (Entry (sf $ ss2s ss) NoChange [])
+               [makeGroup (treePat ++ treeType ++ treeRhs ++ treeWhereClause)]
+             ]
         _ -> vv
 
     decl _ vv = vv
@@ -595,14 +606,16 @@ allocTokens' modu = r
                         else if be <= as
                           then [Node e [b,a]]
                           else -- fully nested case
+                            trace ("redf:fully nested")
                             [Node e1 (sub1++[b])] -- should merge subs
                         where
                           e = Entry ss NoChange []
+          (Node (Entry _ lr []) _) = head ret
 
         in
          trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
                                                    ,(fs $ treeStartEnd b,l2,length sub2)
-                                                   ,(fs $ treeStartEnd (head ret))))
+                                                   ,(fs $ treeStartEnd (head ret),lr)))
          ret
 
     redf new  old = error $ "bar2.redf:" ++ show (new,old)

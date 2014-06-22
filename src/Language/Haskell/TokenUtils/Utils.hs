@@ -14,6 +14,7 @@ module Language.Haskell.TokenUtils.Utils
   , makeLeafFromToks
   , splitToksIncComments
   , makeGroup
+  , makeGroupLayout
   , mkGroup
   , subTreeOnly
   , splitToksForList
@@ -105,9 +106,6 @@ gfromJust  info Nothing = error $ "gfromJust " ++ info ++ " Nothing"
 
 -- ---------------------------------------------------------------------
 
--- ---------------------------------------------------------------------
-
-
 addEndOffsets :: (IsToken a) => LayoutTree a -> [a] -> LayoutTree a
 addEndOffsets tree toks = go tree
   where
@@ -115,7 +113,6 @@ addEndOffsets tree toks = go tree
     go (  (Node (Entry s (Above so p1 (r,c) _eo) []) subs))
         = (Node (Entry s (Above so p1 (r,c) eo') []) (map go subs))
       where
-        -- (_,m,_) = splitToksIncComments ((r,c),(99999,1)) toks
         (_,m,_) = splitToks ((r,c),(99999,1)) toks
         eo' = case m of
                 []  -> None
@@ -123,8 +120,6 @@ addEndOffsets tree toks = go tree
                 xs  -> if ro' /= 0 then FromAlignCol off
                                    else SameLine co'
                   where
-                   -- off@(ro',co') = case (dropWhile isWhiteSpace $ tail xs) of
-                   -- off@(ro',co') = case (dropWhile isWhiteSpace xs) of
                    off@(ro',co') = case (dropWhile isEmpty xs) of
                      []    -> (tokenRow y - r, tokenCol y - c) where y = head $ tail xs
                      (y:_) -> (tokenRow y - r, tokenCol y - c)
