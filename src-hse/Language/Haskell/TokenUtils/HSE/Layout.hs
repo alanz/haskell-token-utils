@@ -315,6 +315,7 @@ showToken' t = case t of
 
 -- ---------------------------------------------------------------------
 
+-- |This instance is the purpose of this module
 instance Allocatable (Module SrcSpanInfo) (Loc TuToken) where
   allocTokens = hseAllocTokens
 

@@ -1,7 +1,22 @@
 name:                haskell-token-utils
-version:             0.1.0.0
+version:             0.0.0.1
 synopsis:            Utilities to tie up tokens to an AST
--- description:         
+description:         This library is currently experimental.
+                     .
+                     The GHC part is solid, since it has been migrated from HaRe.
+                     .
+                     The haskell-src-exts one is still in progress
+                     .
+                     This package provides a set of data structures to
+                     manage the tie-up between a Haskell AST and the
+                     underlying tokens, such that it explicitly
+                     captures the Haskell layout rules and original
+                     formatting. As a result changes can be made to
+                     the AST and the tokens will be updated so that
+                     the source file can be recreated with only the
+                     updated parts changed. This makes it easier to
+                     write Haskell source code modification
+                     programmes.
 homepage:            https://github.com/alanz/haskell-token-utils
 bug-reports:         https://github.com/alanz/haskell-token-utils/issues
 license:             PublicDomain
@@ -27,7 +42,7 @@ library
                      , Language.Haskell.TokenUtils.HSE.Layout
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.6 && <4.7
+  build-depends:       base >=4.5 && <4.7
                      , containers
                      , dual-tree
                      , semigroups

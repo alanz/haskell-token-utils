@@ -95,9 +95,17 @@ instance (IsToken a) => Outputable (Line a) where
   ppr (Line r c o s f str) = parens $ text "Line" <+> ppr r
                          <+> ppr c <+> ppr o
                          <+> ppr s <+> ppr f
-                         <+> text ("\"" ++ (init $ showTokenStream str) ++ "\"")
+                         <+> text ("\"" ++ (safeShowTokenStream str) ++ "\"")
+                         -- <+> text ("\"" ++ (init $ showTokenStream str) ++ "\"")
                          -- <+> text ("\"" ++ (init $ showFriendlyToks str) ++ "\"")
                          -- <+> text (show str) -- ++AZ++ debug
+
+safeShowTokenStream :: IsToken a => [a] -> String
+safeShowTokenStream str =
+  let
+    s = showTokenStream str
+  in
+    if s == "" then s else init s
 
 instance Outputable Source where
   ppr SOriginal = text "SOriginal"
