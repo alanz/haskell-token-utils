@@ -15,6 +15,7 @@ module Language.Haskell.TokenUtils.Utils
   , splitToksIncComments
   , makeGroup
   , makeGroupLayout
+  , makeSpanFromTrees
   , mkGroup
   , subTreeOnly
   , splitToksForList
@@ -242,7 +243,7 @@ placeAbove :: (IsToken a) => EndOffset -> (Row,Col) -> (Row,Col) -> [LayoutTree 
 placeAbove _ _ _ [] = error "placeAbove []"
 placeAbove so p1 p2 ls = Node (Entry loc (Above so p1 p2 None) []) ls
   where
-    loc = combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
+    loc = makeSpanFromTrees ls
 
 -- ---------------------------------------------------------------------
 
@@ -253,9 +254,15 @@ makeGroup ls  = makeGroupLayout NoChange ls
 makeGroupLayout :: (IsToken a) => Layout -> [LayoutTree a] -> LayoutTree a
 makeGroupLayout lay ls = Node (Entry loc lay []) ls
   where
-    loc = case ls of
-           [] -> sf nullSpan
-           _  -> combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
+    loc = makeSpanFromTrees ls
+
+-- ---------------------------------------------------------------------
+
+makeSpanFromTrees :: [LayoutTree a] -> ForestSpan
+makeSpanFromTrees ls
+  = case ls of
+      [] -> sf nullSpan
+      _  -> combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
 
 -- ---------------------------------------------------------------------
 

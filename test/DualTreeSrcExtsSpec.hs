@@ -303,7 +303,7 @@ spec = do
 
       let layout = allocTokens modu toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (drawTreeWithToks layout) `shouldBe` ""
+      (drawTreeWithToks layout) `shouldBe` ""
 
       let srcTree = layoutTreeToSourceTree layout
       -- (showPpr srcTree) `shouldBe` ""
