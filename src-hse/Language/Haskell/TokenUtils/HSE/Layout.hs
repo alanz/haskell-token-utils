@@ -88,6 +88,8 @@ instance IsToken (Loc TuToken) where
   -- No empty tokens in HSE
   isEmpty _ = False
 
+  mkZeroToken = (Loc (s2ss nullSpan) (T (VarId "")))
+
   isDo (Loc _ (T KW_Do))  = True
   isDo (Loc _ (T KW_MDo)) = True
   isDo _                  = False

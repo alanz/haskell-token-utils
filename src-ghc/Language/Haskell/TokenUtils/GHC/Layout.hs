@@ -16,6 +16,7 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , retrieveTokens
   , getLoc
   , nullSrcSpan
+  , mkToken
 
   -- * For testing
   , addEndOffsets
@@ -2060,6 +2061,18 @@ ghcIsEmpty _                               = False
 
 -- ---------------------------------------------------------------------
 
+-- |Compose a new token using the given arguments.
+mkToken::GHC.Token -> SimpPos -> String -> GhcPosToken
+mkToken t (row,col) c = ((GHC.L l t),c)
+  where
+    filename = (GHC.mkFastString "f")
+    l = GHC.mkSrcSpan (GHC.mkSrcLoc filename row col) (GHC.mkSrcLoc filename row (col + (length c) ))
+
+ghcZeroToken :: GhcPosToken
+ghcZeroToken = mkToken GHC.ITsemi (0,0) ""
+
+-- ---------------------------------------------------------------------
+
 nullSrcSpan :: GHC.SrcSpan
 nullSrcSpan = GHC.UnhelpfulSpan $ GHC.mkFastString "HaRe nullSrcSpan"
 
@@ -2091,6 +2104,7 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
 
   isComment = ghcIsComment
   isEmpty = ghcIsEmpty
+  mkZeroToken = ghcZeroToken
   isDo = ghcIsDo
   isElse = ghcIsElse
   isIn = ghcIsIn

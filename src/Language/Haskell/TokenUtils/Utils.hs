@@ -43,6 +43,7 @@ module Language.Haskell.TokenUtils.Utils
   , forestPosLenChanged
   , treeIdIntoForestSpan
   , spanContains
+  -- , insertForestLineInSpan
   , insertVersionsInForestSpan
   , insertLenChangedInForestSpan
 
@@ -382,6 +383,18 @@ spanContains span1 span2 = (startPos <= nodeStart && endPos >= nodeEnd)
         (startPos,endPos)   = insertVersionsInForestSpan tvs tvs span1
         (nodeStart,nodeEnd) = insertVersionsInForestSpan nvs nvs span2
 
+-- ---------------------------------------------------------------------
+{-
+-- | Replace any ForestLine flags already in a Span with the given ones
+insertForestLineInSpan :: ForestLine -> Span -> Span
+insertForestLineInSpan fl@(ForestLine ch tr v _l) ss = ss'
+  where
+    Span (lineStart,sc) (_,ec) = ss
+    -- lineStart = forestLineToGhcLine fl
+    (_,(ForestLine _ _ _ le,_)) = srcSpanToForestSpan ss
+    lineEnd   = forestLineToGhcLine (ForestLine ch tr v le)
+    ss' = Span (lineStart,sc) (lineEnd,ec)
+-}
 -- ---------------------------------------------------------------------
 
 insertVersionsInForestSpan :: Int -> Int -> ForestSpan -> ForestSpan

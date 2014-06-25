@@ -8,10 +8,23 @@ module Language.Haskell.TokenUtils.TokenUtils
 
   -- * Operations at 'TokenCache' level
   , Positioning (..)
+  -- , ReversedToks(..)
   , putToksInCache
   , replaceTokenInCache
   , replaceTokenForSrcSpan
   , invariant
+  , getSrcSpanFor
+
+  -- *
+  , retrieveTokensInterim
+  -- , retrieveTokensFinal
+
+  -- *
+  , splitOnNewLn
+  , getIndentOffset
+  , newLnToken
+  , startEndLocIncComments'
+  , forestSpanToGhcPos
 
   -- *
   , nullForestSpan
@@ -94,6 +107,12 @@ mkTreeFromSpanTokens sspan toks = Node (Entry sspan NoChange toks) []
 
 -- ---------------------------------------------------------------------
 
+forestSpanStart :: ForestSpan -> ForestPos
+forestSpanStart (start,_) = start
+
+forestSpanEnd :: ForestSpan -> ForestPos
+forestSpanEnd (_,end) = end
+
 nullForestSpan :: ForestSpan
 nullForestSpan = (nullForestPos,nullForestPos)
 
@@ -108,17 +127,145 @@ simpPosToForestSpan ((sr,sc),(er,ec))
 
 -- ---------------------------------------------------------------------
 
-invariant :: a
-invariant = assert False undefined
+-- invariant :: a
+-- invariant = assert False undefined
+-- ---------------------------------------------------------------------
+
+-- |Utility function to either return True or throw an error to report the problem
+invariantOk :: (IsToken a) => Tree (Entry a) -> Bool
+invariantOk forest = ok
+  where
+    inv = invariant forest
+    ok = case inv of
+           [] -> True
+           _  -> error $ "Token Tree invariant fails:" ++ (intercalate "\n" inv)
+
+-- ---------------------------------------------------------------------
+-- |Check the invariant for the token cache. Returns list of any errors found.
+-- Invariants:
+--   1. For each tree, either the rootLabel has a SrcSpan only, or the subForest /= [].
+--   2a. The trees making up the subForest of a given node fully include the parent SrcSpan.
+--        i.e. the leaves contain all the tokens for a given SrcSpan.
+--   2b. The subForest is in SrcSpan order
+--   3. A given SrcSpan can only appear (or be included) in a single tree of the forest.
+--   4. The parent link for all sub-trees does exist, and actually points to the parent. 
+--   5. There are no nullForestSpan entries in the tree
+-- NOTE: the tokens may extend before or after the SrcSpan, due to comments only
+-- NOTE2: this will have to be revisited when edits to the tokens are made
+invariant :: (IsToken a) => Tree (Entry a) -> [String]
+invariant forest = rsub
+  where
+    rsub = F.foldl checkOneTree [] [forest]
+
+    checkOneTree :: (IsToken a) => [String] -> Tree (Entry a) -> [String]
+    checkOneTree acc tree = acc ++ r
+      where
+        r = checkNode [] tree
+
+    checkNode :: (IsToken a) => [String] -> Tree (Entry a) -> [String]
+    checkNode _acc (Node (Deleted _sspan _ _) []) = []
+    checkNode _acc node@(Node (Deleted _sspan _ _) _sub)
+         = ["FAIL: deleted node with subtree: " ++ (prettyshow node)]
+    checkNode acc node@(Node (Entry sspan _lay toks) sub) = acc ++ r ++ rinc ++ rsubs ++ rnull
+      where
+        r = if (     null toks  && not (null sub)) ||
+               (not (null toks) &&      null sub)
+              then []
+              else ["FAIL: exactly one of toks or subforest must be empty: " ++ (prettyshow node)]
+        rsubs = foldl' checkNode [] sub
+
+        rinc = checkInclusion node
+
+        rnull = if (sspan == nullForestSpan)
+                 then ["FAIL: null SrcSpan in tree: " ++ (prettyshow node)]
+                 else []
+
+    -- |Check invariant 2, assuming 1 ok
+    --  NOTE: check that the subtree spans do not go outside the node
+    --  span, they do not need to completely fill it, because some may
+    --  have been removed during manipulation
+    checkInclusion      (Node _                    []) = []
+    checkInclusion      (Node (Deleted _ _ _)       _) = []
+    checkInclusion node@(Node (Entry _sspan _lay _toks)  sub) = rs ++ rseq
+      where
+        (start,end) = treeStartEnd node
+        subs = map treeStartEnd sub
+        (sstart, _) = ghead "invariant" subs
+        (_, send) = last subs
+        -- Do not count any custom added srcspans at the end for this
+        -- test
+        -- TODO: is this a reasonable approach?
+
+        rs = if ((start <= sstart) &&
+                ((end >= send) || (forestPosVersionSet send) || (forestPosAstVersionSet send)))
+                || (forestPosLenChanged start)
+                || (forestPosLenChanged sstart)
+                || (forestPosLenChanged send)
+
+               then []
+               else ["FAIL: subForest start and end does not match entry: " ++ (prettyshow node)]
+               -- else ["FAIL: subForest start and end does not match entry: " ++ (show node)]
+
+        rseq = checkSequence node subs
+
+        checkSequence :: (IsToken a) => Tree (Entry a) -> [ForestSpan] -> [String]
+        checkSequence _ [] = []
+        checkSequence _ [_x] = []
+        checkSequence node' ((_s1,e1):s@(s2,_e2):ss)
+          = r ++ checkSequence node' (s:ss)
+          where
+            -- r = if e1 <= s2
+            r = if (before e1 s2) || (sizeChanged e1) {- ++AZ++ -} || (sizeChanged s2)
+                 then []
+                 else ["FAIL: subForest not in order: " ++
+                        show e1 ++ " not < " ++ show s2 ++
+                        ":" ++ prettyshow node']
+
+            -- |Compare end of one span with beginning of another
+            before (ForestLine _chs _trs ve er,ec) (ForestLine _che _tre vs sr,sc)
+              = case (ve /= 0, vs /= 0) of
+                 (False, False) -> (er,ec) <= (sr,sc) -- e.g. (10,3) <= (11,5)
+                 (False, True)  -> True               -- e.g. (10,3) <= (100011,5)
+                 (True, False)  -> True               -- e.g. (100010,3) <= (11,5)
+                 (True, True)   -> if vs < ve         -- both have version, lowest wins 
+                                    then False
+                                    else True
+
+            sizeChanged (ForestLine ch _ _ _,_) = ch
+
+{-
+     cs    ce
+     True  _ -> True
+     False _ -> before
+
+-}
 
 -- ---------------------------------------------------------------------
 
-replaceTokenInCache :: (IsToken a) => TokenCache a -> Span -> a -> TokenCache a
-replaceTokenInCache tk sspan tok = tk'
+showTree :: (IsToken a) => Tree (Entry a) -> String
+showTree = prettyshow
+
+-- |Represent a tree in a more concise/pretty way
+prettyshow :: (IsToken a) => Tree (Entry a) -> String
+prettyshow (Node (Deleted sspan _pg eg) _nullSubs)
+  = "Node (Deleted " ++ (showForestSpan sspan) ++ " " ++ (show eg) ++ ")"
+prettyshow (Node (Entry sspan _lay toks) sub)
+  = "Node (Entry " ++ (showForestSpan sspan) ++ " "
+     ++ (prettyToks toks) ++ ") "
+     -- ++ show (map prettyshow sub)
+     ++ "[" ++ intercalate "," (map prettyshow sub) ++ "]"
+
+prettyToks :: (IsToken a) => [a] -> String
+prettyToks [] = "[]"
+prettyToks toks@[_x] = showToks toks
+prettyToks toks@[_t1,_t2] = showToks toks
+prettyToks toks = showToks [ghead "prettyToks" toks] ++ ".." ++ showToks [last toks]
+
+showToks :: (IsToken a) => [a] -> String
+showToks toks = show $ map doOne toks
   where
-   forest = getTreeFromCache sspan tk
-   forest' = replaceTokenForSrcSpan forest sspan tok
-   tk' = replaceTreeInCache sspan forest' tk
+    doOne tok = (s,e,tok)
+      where (Span s e) = getSpan tok
 
 -- ---------------------------------------------------------------------
 
@@ -207,6 +354,15 @@ replaceTokenForSrcSpan forest sspan tok = forest'
 
 -- ---------------------------------------------------------------------
 
+replaceTokenInCache :: (IsToken a) => TokenCache a -> Span -> a -> TokenCache a
+replaceTokenInCache tk sspan tok = tk'
+  where
+   forest = getTreeFromCache sspan tk
+   forest' = replaceTokenForSrcSpan forest sspan tok
+   tk' = replaceTreeInCache sspan forest' tk
+
+-- ---------------------------------------------------------------------
+
 putToksInCache :: (IsToken a) => TokenCache a -> Span -> [a] -> (TokenCache a,Span)
 putToksInCache tk sspan toks = (tk'',newSpan)
   where
@@ -214,6 +370,208 @@ putToksInCache tk sspan toks = (tk'',newSpan)
    (forest',newSpan,oldTree) = updateTokensForSrcSpan forest sspan toks
    tk' = replaceTreeInCache sspan forest' tk
    tk'' = stash tk' oldTree
+
+-- ---------------------------------------------------------------------
+
+removeToksFromCache :: (IsToken a) => TokenCache a -> Span -> TokenCache a
+removeToksFromCache tk sspan = tk''
+  where
+    forest = getTreeFromCache sspan tk
+    (forest',oldTree) = removeSrcSpan forest (srcSpanToForestSpan sspan)
+    tk' = replaceTreeInCache sspan forest' tk
+    tk'' = stash tk' oldTree
+
+-- ---------------------------------------------------------------------
+
+-- | Removes a ForestSpan and its tokens from the forest.
+removeSrcSpan :: (IsToken a) => Tree (Entry a) -> ForestSpan
+  -> (Tree (Entry a),Tree (Entry a)) -- ^Updated forest, removed span
+removeSrcSpan forest sspan = (forest'', delTree)
+  where
+    forest' = insertSrcSpan forest sspan -- Make sure span is actually
+                                         -- in the tree
+    z = openZipperToSpan sspan $ Z.fromTree forest'
+    zp = gfromJust "removeSrcSpan" $ Z.parent z
+
+    ((pg,_),eg) = calcPriorAndEndGap forest' sspan
+
+    pt = Z.tree zp
+
+    subTree = map (\t -> if (treeStartEnd t == sspan) then (Node (Deleted sspan pg eg) []) else t) $ subForest pt
+
+    z' = Z.setTree (pt { subForest = subTree}) zp
+    forest'' = Z.toTree z'
+
+    delTree = Z.tree z
+    -- forest'' = error $ "removeSrcSpan: forest'=" ++ drawTreeCompact forest'
+
+-- ---------------------------------------------------------------------
+
+-- |Add a new SrcSpan and Tokens after a given one in the token stream
+-- and forest. This will be given a unique SrcSpan in return, which
+-- specifically indexes into the forest.
+addNewSrcSpanAndToksAfter :: (IsToken a)
+  => Tree (Entry a) -- ^The forest to update
+  -> Span -- ^The new span comes after this one
+  -> Span -- ^Existing span for the tokens
+  -> Positioning
+  -> [a]  -- ^The new tokens belonging to the new SrcSpan
+  -> (Tree (Entry a) -- Updated forest with the new span
+     , Span) -- ^Unique SrcSpan allocated in the forest to
+                    -- identify this span in its position
+addNewSrcSpanAndToksAfter forest oldSpan newSpan pos toks = (forest'',newSpan')
+  where
+    (forest',tree) = getSrcSpanForDeep forest (srcSpanToForestSpan oldSpan)
+
+    (ghcl,_c) = getStartLoc newSpan
+    (ForestLine ch tr v l) = ghcLineToForestLine ghcl
+    newSpan' = insertForestLineInSpan (ForestLine ch tr (v+1) l) newSpan
+
+    toks' = placeToksForSpan forest' oldSpan tree pos toks
+
+    newNode = Node (Entry (srcSpanToForestSpan newSpan') NoChange toks') []
+
+    forest'' = insertNodeAfter tree newNode forest'
+
+-- ---------------------------------------------------------------------
+
+placeToksForSpan :: (IsToken a)
+  => Tree (Entry a)
+  -> Span
+  -> Tree (Entry a)
+  -> Positioning
+  -> [a]
+  -> [a]
+placeToksForSpan forest oldSpan tree pos toks = toks'
+  where
+    z = openZipperToSpanDeep (srcSpanToForestSpan oldSpan) $ Z.fromTree forest
+    prevToks = case (retrievePrevLineToks z) of
+                 RT [] -> reverseToks $ retrieveTokensInterim tree
+                 xs -> xs
+
+    prevToks' = limitPrevToks prevToks oldSpan
+    toks' = reIndentToks pos (unReverseToks prevToks') toks
+    -- toks' = error $ "placeToksForSpan: prevToks'=" ++ (show prevToks')
+    -- toks' = error $ "placeToksForSpan: prevToks=" ++ (show prevToks)
+
+-- ---------------------------------------------------------------------
+
+limitPrevToks :: (IsToken a) => ReversedToks a -> Span -> ReversedToks a
+limitPrevToks prevToks sspan = reverseToks prevToks''
+  where
+    ((ForestLine _ _ _ startRow,_startCol),(ForestLine _ _ _ endRow,_)) = srcSpanToForestSpan sspan
+
+    -- Make sure the toks do not extend past where we are
+    prevToks' = dropWhile (\t -> tokenRow t > endRow) $ unReverseToks prevToks
+
+    -- Only use the toks for the given oldspan
+    -- prevToks'' = dropWhile (\t -> tokenPos t < (startRow,startCol)) prevToks'
+    prevToks'' = dropWhile (\t -> tokenRow t < startRow) prevToks'
+
+-- ---------------------------------------------------------------------
+
+-- |Add new tokens after the given SrcSpan, constructing a new SrcSpan
+-- in the process
+addToksAfterSrcSpan :: (IsToken a)
+  => Tree (Entry a)  -- ^TokenTree to be modified
+  -> Span -- ^Preceding location for new tokens
+  -> Positioning
+  -> [a] -- ^New tokens to be added
+  -> (Tree (Entry a), Span) -- ^ updated TokenTree and SrcSpan location for
+                               -- the new tokens in the TokenTree
+addToksAfterSrcSpan forest oldSpan pos toks = (forest',newSpan')
+  where
+    (fwithspan,tree) = getSrcSpanForDeep forest (srcSpanToForestSpan oldSpan)
+
+    toks'' = placeToksForSpan fwithspan oldSpan tree pos toks
+
+    (startPos,endPos) = nonCommentSpan toks''
+
+    newSpan = posToSpan (startPos,endPos)
+
+    (forest',newSpan') = addNewSrcSpanAndToksAfter forest oldSpan newSpan pos toks
+
+-- ---------------------------------------------------------------------
+
+-- |For a span about to be deleted, calculate the gap between the end
+-- of the span being deleted and the start of the next one, at a token
+-- level.
+calcPriorAndEndGap :: (IsToken a) => Tree (Entry a) -> ForestSpan -> (SimpPos,SimpPos)
+calcPriorAndEndGap tree sspan = (pg,eg)
+  where
+    ((spanStartRow,spanStartCol),(spanRow,spanCol)) = forestSpanToSimpPos sspan
+    (spanStart,spanEnd) = sspan
+    entries = retrieveTokens' tree
+    -- NOTE: the entries are the fringe of the tree, the sspan in
+       -- question may be represented by several entries
+    (before,rest)    = span  (\e -> (forestSpanStart $ forestSpanFromEntry e) < spanStart) entries
+    (rafter,rmiddle) = break (\e -> (forestSpanEnd $ forestSpanFromEntry e) <= spanEnd) $ reverse rest
+    _middle = reverse rmiddle
+    after = reverse rafter
+    -- last element of before should be the sspan we care about, first
+    -- of after is the one we are looking for.
+
+    -- NOTE: `after` may contain zero or more Deleted segments in the
+    -- front. These get merged later in mergeDeletes
+    (tokRow,tokCol) = if null after
+        then (spanRow + 2,spanCol)
+        else (r,c)
+            where
+                (r,c) = case ghead ("calcEndGap:after="++(show after)) after of
+                    (Entry _ _ toks) -> (tokenRow t,tokenCol t)
+                        where t = ghead "calcEndGap" toks
+                    (Deleted ss _ _) -> fst $ forestSpanToSimpPos ss
+
+    eg = (tokRow - spanRow, tokCol - spanCol)
+    -- eg = error $ "calcEndGap: (sspan,(before,middle,after))=" ++ (show (sspan,(_before,middle,after)))
+
+    (tokRowPg,tokColPg) = if null before
+        then (spanStartRow - 1,spanStartCol)
+        else (r,c)
+            where
+                (r,c) = case glast ("calcEndGap:before="++(show before)) before of
+                    (Entry _ _ toks) -> (tokenRow t,tokenCol t)
+                        where t = glast "calcEndGap pg" toks
+                    (Deleted ss _ _) -> snd $ forestSpanToSimpPos ss
+
+    -- TODO: what about comments before the span? spanStartRow may be off
+    pg = (spanStartRow - tokRowPg, spanStartCol - tokColPg)
+
+
+-- ---------------------------------------------------------------------
+
+-- TODO: delete this, superseded by calcPriorAndEndGap
+-- |For a span about to be deleted, calculate the gap between the end
+-- of the span being deleted and the start of the next one, at a token
+-- level.
+calcEndGap :: (IsToken a) => Tree (Entry a) -> ForestSpan -> SimpPos
+calcEndGap tree sspan = gap
+  where
+    (_sspanStart,(spanRow,spanCol)) = forestSpanToSimpPos sspan
+    (spanStart,spanEnd) = sspan
+    entries = retrieveTokens' tree
+    -- NOTE: the entries are the fringe of the tree, the sspan in
+       -- question may be represented by several entries
+    (_before,rest)   = span  (\e -> (forestSpanStart $ forestSpanFromEntry e) < spanStart) entries
+    (rafter,rmiddle) = break (\e -> (forestSpanEnd $ forestSpanFromEntry e) <= spanEnd) $ reverse rest
+    _middle = reverse rmiddle
+    after = reverse rafter
+    -- last element of before should be the sspan we care about, first
+    -- of after is the one we are looking for.
+
+    -- NOTE: `after` may contain zero or more Deleted segments in the
+    -- front. These get merged later in mergeDeletes
+    (tokRow,tokCol) = if null after
+        then (spanRow + 2,spanCol)
+        else (r,c)
+            where
+                (r,c) = case ghead ("calcEndGap:after="++(show after)) after of
+                    (Entry _ _ toks) -> (tokenRow t,tokenCol t)
+                        where t = ghead "calcEndGap" toks
+                    (Deleted ss _ _) -> fst $ forestSpanToSimpPos ss
+
+    gap = (tokRow - spanRow, tokCol - spanCol)
+    -- gap = error $ "calcEndGap: (sspan,(before,middle,after))=" ++ (show (sspan,(_before,middle,after)))
 
 -- ---------------------------------------------------------------------
 
@@ -272,6 +630,83 @@ updateTokensForSrcSpan forest sspan toks = (forest'',newSpan,oldTree)
     forest'' = Z.toTree zf'
 
     oldTree = tree
+
+-- ---------------------------------------------------------------------
+
+-- |Get the tokens preceding a given 'SrcSpan'
+getTokensBefore :: (IsToken a) => Tree (Entry a) -> Span -> (Tree (Entry a),ReversedToks a)
+getTokensBefore forest sspan = (forest', prevToks')
+  where
+    (forest',tree@(Node (Entry _s _ _) _)) = getSrcSpanFor forest (srcSpanToForestSpan sspan)
+
+    z = openZipperToSpan (srcSpanToForestSpan sspan) $ Z.fromTree forest'
+
+    prevToks = case (retrievePrevLineToks z) of
+                 RT [] -> reverseToks $ retrieveTokensInterim tree
+                 xs -> xs
+
+    (_,rtoks) = break (\t->tokenPos t < (getStartLoc sspan)) $ reversedToks prevToks
+    prevToks' = RT rtoks
+
+getStartLoc :: Span -> SimpPos
+getStartLoc (Span s _) = s
+
+-- ---------------------------------------------------------------------
+
+-- |Get the (possible cached) tokens for a given source span, and
+-- cache their being fetched.
+-- NOTE: The SrcSpan may be one introduced by HaRe, rather than GHC.
+getTokensFor :: (IsToken a) => Bool -> Tree (Entry a) -> Span -> (Tree (Entry a),[a])
+getTokensFor checkInvariant forest sspan = (forest'', tokens)
+  where
+     forest' = if (not checkInvariant) || invariantOk forest
+                -- short circuit eval
+               then forest
+               else error $ "getTokensFor:invariant failed:" ++ (show $ invariant forest)
+     (forest'',tree) = getSrcSpanFor forest' (srcSpanToForestSpan sspan)
+
+     tokens = retrieveTokensInterim tree
+
+-- ---------------------------------------------------------------------
+
+-- |Get the (possible cached) tokens for a given source span, and
+-- cache their being fetched.
+-- NOTE: The SrcSpan may be one introduced by HaRe, rather than GHC.
+getTokensForNoIntros :: (IsToken a) => Bool -> Tree (Entry a) -> Span -> (Tree (Entry a),[a])
+getTokensForNoIntros checkInvariant forest sspan = (forest', tokens')
+  where
+    (forest',tokens) = getTokensFor checkInvariant forest sspan
+    -- (lead,rest) = break (not . isWhiteSpaceOrIgnored) tokens
+    (lead,rest) = break (not . isIgnoredNonComment) tokens
+    tokens' = (filter (not . isIgnored) lead) ++ rest
+
+-- ---------------------------------------------------------------------
+
+-- |Starting from a point in the zipper, retrieve all tokens backwards
+-- until the line changes for a non-comment/non-empty token or
+-- beginning of file.
+retrievePrevLineToks :: (IsToken a) => Z.TreePos Z.Full (Entry a) -> ReversedToks a
+retrievePrevLineToks z = RT res' -- error $ "retrievePrevLineToks:done notWhite=" ++ (show (done notWhite)) -- ++AZ++
+  where
+    -- Assuming the zipper has been opened to the span we care about,
+    -- we will start with the tokens in the current tree, and work
+    -- back.
+    -- prevToks = retrieveTokens $ Z.tree z
+    prevToks = retrieveTokensInterim $ Z.tree z
+
+    -- Next one is the usual one
+    -- res' = reverse $ (concat (go z)) ++ prevToks
+    res' =  reverse $ concat $ reverse (prevToks : (go z))
+
+    -- TODO:  ++AZ++ what is this actually doing?
+    go :: (IsToken a) => Z.TreePos Z.Full (Entry a) -> [[a]]
+    go zz
+      | not (Z.isRoot zz) = toks : (go $ gfromJust "retrievePrevLineToks" (Z.parent zz))
+      | otherwise = [toks]
+      where
+        toks = concat $ reverse $ map retrieveTokensInterim $ Z.before zz
+        -- toks = concat $ map retrieveTokensInterim $ Z.before zz
+
 
 -- ---------------------------------------------------------------------
 
@@ -759,6 +1194,27 @@ getTreeSpansAsList' level (Node (Entry sspan _lay _toks) ts0) = (level,sspan)
 
 -- ---------------------------------------------------------------------
 
+-- |Insert a new node after the designated one in the tree
+insertNodeAfter :: (IsToken a)
+  => Tree (Entry a) -> Tree (Entry a) -> Tree (Entry a) -> Tree (Entry a)
+insertNodeAfter oldNode newNode forest = forest'
+  where
+    zf = openZipperToNodeDeep oldNode $ Z.fromTree forest
+
+    zp = gfromJust ("insertNodeAfter:" ++ (show (oldNode,newNode,forest))) $ Z.parent zf
+    tp = Z.tree zp
+
+    -- now go through the children of the parent tree, and find the
+    -- right spot for the new node
+    (f,s) = break (\t -> treeStartEnd t == treeStartEnd oldNode) $ subForest tp
+    (f',s') = (f++[ghead "insertNodeAfter" s],tail s) -- break does not include the found point
+    subForest' = f' ++ [newNode] ++ s'
+
+    tp' = tp { subForest = subForest' }
+    forest' = Z.toTree $ Z.setTree tp' zp
+
+-- ---------------------------------------------------------------------
+
 -- |Open a zipper so that its focus is the given node
 --  NOTE: the node must already be in the tree
 openZipperToNode :: (IsToken a)
@@ -873,6 +1329,116 @@ goMonotonicLineToks (orow,ocol) (t1:t2:ts)
 
     -- t1' = increaseSrcSpan (orow,ocol) t1
     t2' = increaseSrcSpan offset'     t2
+
+-- ---------------------------------------------------------------------
+{- No longer used
+-- |Retrieve all the tokens at the leaves of the tree, in order.
+-- Marked tokens are re-aligned, and gaps are closed.
+retrieveTokensFinal :: (IsToken a) => Tree (Entry a) -> [a]
+retrieveTokensFinal forest = monotonicLineToks $ stripForestLines $ reAlignMarked
+                      $ deleteGapsToks $ retrieveTokens' forest
+
+-- ---------------------------------------------------------------------
+
+reAlignMarked :: (IsToken a) => [a] -> [a]
+reAlignMarked toks = concatMap alignOne $ groupTokensByLine toks
+  where
+    -- alignOne toksl = unmarked ++ (reAlignToks marked)
+    alignOne toksl = unmarked ++ (reAlignOneLine marked)
+     where
+       (unmarked,marked) = break isMarked toksl
+
+-- ---------------------------------------------------------------------
+
+-- | Some tokens are marked if they belong to identifiers which have
+-- been renamed. When the renaming takes place, no layout adjustment
+-- is done. This function adjusts the spacing for the rest of the line
+-- to match as far as possible the original spacing, except for the
+-- name change.
+reAlignOneLine :: [PosToken] -> [PosToken]
+reAlignOneLine toks = go (0,0) toks
+  where
+    go _ [] = []
+    go (l,c) (t:ts) = (increaseSrcSpan (l,c) t') : (go (l,c') ts)
+      where
+        (t',dc) = adjustToken t
+        c' = c + dc
+
+    adjustToken tt@(_,"") = (tt,0)
+    adjustToken tt@(lt@(GHC.L _ t),s) = ((GHC.L newL t,s),deltac)
+      where
+        (sl,sc) = getLocatedStart lt
+        (el,ec) = getLocatedEnd   lt
+        deltac = (length s) - (ec - sc)
+
+        filename = fileNameFromTok tt
+        newL = GHC.mkSrcSpan (GHC.mkSrcLoc filename sl sc)
+                             (GHC.mkSrcLoc filename el (ec + deltac))
+
+
+reAlignToks :: (IsToken a) => [a] -> [a]
+reAlignToks [] = []
+reAlignToks [t] = [t]
+reAlignToks (tok1@(_,""):ts) = tok1 : reAlignToks ts
+reAlignToks (tok1@((GHC.L l1 _t1),_s1):tok2@((GHC.L l2 t2),s2):ts)
+  = tok1:reAlignToks (tok2':ts)
+   where
+     ((_sr1,_sc1),(er1,ec1)) = (getGhcLoc l1,getGhcLocEnd l1)
+     (( sr2, sc2),(er2,ec2)) = (getGhcLoc l2,getGhcLocEnd l2)
+
+     ((sr,sc),(er,ec)) = if (er1 == sr2 && ec1 >= sc2)
+              then ((sr2,ec1+1),(er2,ec1+1 + tokenLen tok2))
+              else ((sr2,sc2),(er2,ec2))
+
+     fname = case l2 of
+               GHC.RealSrcSpan ss -> GHC.srcSpanFile ss
+               _ -> GHC.mkFastString "foo"
+     l2' = GHC.mkRealSrcSpan (GHC.mkRealSrcLoc fname sr sc)
+                             (GHC.mkRealSrcLoc fname er ec)
+     tok2' = ((GHC.L (GHC.RealSrcSpan l2') t2),s2)
+-}
+-- ---------------------------------------------------------------------
+
+-- TODO: deprecated, doing this at the Ppr level now
+adjustLinesForDeleted :: (IsToken a) => Tree (Entry a) -> Tree (Entry a)
+adjustLinesForDeleted forest = forest'
+  where
+    (_,forest') = go (0,0) forest
+
+    go :: (IsToken a) => (Int,Int) -> Tree (Entry a) -> ((Int,Int),Tree (Entry a))
+    go (ro,co) (n@(Node (Entry _ss _lay _toks) [])) = ((ro,co),applyOffsetToTreeShallow (ro,co) n)
+    go (ro,co) (n@(Node (Deleted _ _ (gr,_gc)) _nullSubs))   = ((ro-gr,co),n)
+    go (ro,co) (n@(Node (Entry _ss _lay []) _subs)) = ((ro',co'),Node (Entry ss lay []) subs')
+      where
+        (Node (Entry ss lay []) subs) = applyOffsetToTreeShallow (ro,co) n
+        ((ro',co'),subs') = foldl' go' ((ro,co),[]) subs
+
+    go (_ro,_co) (n@(Node (Entry _ss _lay _toks) _subs))
+      = error $ "adjustLinesForDeleted: Entry with toks and subs:" ++ (show n)
+
+    go' ((ro,co),acc) tree = ((ro',co'),acc++[tree'])
+      where
+        ((ro',co'),tree') = go (ro,co) tree
+
+-- ---------------------------------------------------------------------
+
+applyOffsetToTreeShallow :: (IsToken a) => (Int,Int) -> Tree (Entry a) -> Tree (Entry a)
+applyOffsetToTreeShallow (ro,co) (Node (Entry sspan lay toks) subs)
+  = (Node (Entry sspan' lay toks') subs')
+  where
+    sspan' = addOffsetToForestSpan (ro,co) sspan
+    toks' = addOffsetToToks (ro,co) toks
+    subs' = subs
+applyOffsetToTreeShallow _ n@(Node (Deleted _ _ _) _) = n
+
+-- ---------------------------------------------------------------------
+
+addOffsetToForestSpan :: (Int,Int) -> ForestSpan -> ForestSpan
+addOffsetToForestSpan (lineOffset,colOffset) fspan = fspan'
+  where
+    ((ForestLine sch str sv sl,sc),(ForestLine ech etr ev el,ec)) = fspan
+    fspan' = ((ForestLine sch str sv (sl+lineOffset),sc+colOffset),
+              (ForestLine ech etr ev (el+lineOffset),ec+colOffset))
 
 -- ---------------------------------------------------------------------
 
