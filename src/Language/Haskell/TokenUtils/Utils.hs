@@ -22,6 +22,7 @@ module Language.Haskell.TokenUtils.Utils
   , placeAbove
   , allocList
   , strip
+  , startEndLocIncComments'
 
   -- * SrcSpan to ForestSpan conversions
   , sf
@@ -48,6 +49,7 @@ module Language.Haskell.TokenUtils.Utils
   -- * Spans
   , spanStartEnd
   , combineSpans
+  , nonCommentSpan
 
   -- * drawing the various trees
   , drawTreeEntry
@@ -166,6 +168,16 @@ splitToksIncComments pos toks = splitToks pos' toks
     pos' = startEndLocIncComments' toks pos
 
 -- ---------------------------------------------------------------------
+
+-- | Get the start&end location of t in the token stream, then extend
+-- the start and end location to cover the preceding and following
+-- comments.
+--
+{-
+-- In this routine, 'then','else','do' and 'in' are treated as comments.
+startEndLocIncComments::(SYB.Data t) => [PosToken] -> t -> (SimpPos,SimpPos)
+startEndLocIncComments toks t = startEndLocIncComments' toks (getStartEndLoc t)
+-}
 
 startEndLocIncComments' :: (IsToken a) => [a] -> (SimpPos,SimpPos) -> (SimpPos,SimpPos)
 startEndLocIncComments' toks (startLoc,endLoc) =
@@ -411,6 +423,22 @@ nonCommentSpanLayout toks = (startPos,endPos)
        where
         startTok = ghead "nonCommentSpan.1" $ dropWhile isComment $ toks
         endTok   = ghead "nonCommentSpan.2" $ dropWhile isComment $ reverse toks
+
+-- ---------------------------------------------------------------------
+
+-- |Extract the start and end position of a span, without any leading
+-- or trailing comments
+nonCommentSpan :: (IsToken a) => [a] -> (SimpPos,SimpPos)
+nonCommentSpan [] = ((0,0),(0,0))
+nonCommentSpan toks = (startPos,endPos)
+  where
+    stripped = dropWhile isIgnoredNonComment $ toks
+    (startPos,endPos) = case stripped of
+      [] -> ((0,0),(0,0))
+      _ -> (tokenPos startTok,tokenPosEnd endTok)
+       where
+        startTok = ghead "nonCommentSpan.1" $ dropWhile isIgnoredNonComment $ toks
+        endTok   = ghead "nonCommentSpan.2" $ dropWhile isIgnoredNonComment $ reverse toks
 
 -- ---------------------------------------------------------------------
 

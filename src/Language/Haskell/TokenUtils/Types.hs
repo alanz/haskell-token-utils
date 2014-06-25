@@ -38,6 +38,7 @@ module Language.Haskell.TokenUtils.Types
   , addOffsetToToks
   , ghcLineToForestLine
   , forestLineToGhcLine
+  , forestLenChangedMask
 
   , IsToken(..)
   , notWhiteSpace
@@ -207,7 +208,8 @@ class (Show a) => IsToken a where
   isComment   :: a -> Bool
 
   -- |Zero-length tokens, as appear in GHC as markers
-  isEmpty     :: a -> Bool
+  isEmpty      :: a -> Bool
+  mkZeroToken  :: a
 
   isDo         :: a -> Bool
   isElse       :: a -> Bool
