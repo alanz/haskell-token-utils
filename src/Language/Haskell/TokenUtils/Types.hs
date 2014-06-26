@@ -223,6 +223,13 @@ class (Show a) => IsToken a where
   -- TODO: may be able to get rid of next due to former
   showTokenStream :: [a] -> String
 
+  -- |Mark a token so that it can be use to trigger layout checking
+  -- later when the toks are retrieved
+  markToken :: a -> a
+  isMarked  :: a -> Bool
+
+
+
 -- derived functions
 isWhiteSpace :: (IsToken a) => a -> Bool
 isWhiteSpace tok = isComment tok || isEmpty tok

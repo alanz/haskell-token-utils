@@ -8,16 +8,29 @@ module Language.Haskell.TokenUtils.TokenUtils
 
   -- * Operations at 'TokenCache' level
   , Positioning (..)
-  -- , ReversedToks(..)
+  , ReversedToks(..)
+  , reverseToks
+  , unReverseToks
+  , reversedToks
   , putToksInCache
   , replaceTokenInCache
+  , removeToksFromCache
   , replaceTokenForSrcSpan
   , invariant
   , getSrcSpanFor
+  , indentDeclToks
+
+  , addToksAfterSrcSpan
+  , addOffsetToSpan
+  , reIndentToks
 
   -- *
   , retrieveTokensInterim
+  , getTokensForNoIntros
+  , getTokensFor
+  , getTokensBefore
   -- , retrieveTokensFinal
+  , reAlignMarked
 
   -- *
   , splitOnNewLn
@@ -29,6 +42,26 @@ module Language.Haskell.TokenUtils.TokenUtils
   -- *
   , nullForestSpan
   , nullForestPos
+
+  -- *
+  , showTree
+  , showToks
+
+  -- * Exposed for testing only
+  , addNewSrcSpanAndToksAfter
+  , openZipperToSpan
+  , retrievePrevLineToks
+  , limitPrevToks
+  , insertSrcSpan
+  , insertLenChangedInSrcSpan
+  , insertVersionsInSrcSpan
+  , updateTokensForSrcSpan
+  , removeSrcSpan
+  , containsStart
+  , containsMiddle
+  , containsEnd
+  , splitSubtree
+  -- , splitForestOnSpan
   ) where
 
 import Control.Exception
@@ -125,10 +158,6 @@ simpPosToForestSpan :: (SimpPos,SimpPos) -> ForestSpan
 simpPosToForestSpan ((sr,sc),(er,ec))
     = ((ghcLineToForestLine sr,sc),(ghcLineToForestLine er,ec))
 
--- ---------------------------------------------------------------------
-
--- invariant :: a
--- invariant = assert False undefined
 -- ---------------------------------------------------------------------
 
 -- |Utility function to either return True or throw an error to report the problem
@@ -783,6 +812,68 @@ reIndentToks pos prevToks toks = toks''
 
 -- ---------------------------------------------------------------------
 
+-- | indent the tree and tokens by the given offset, and sync the AST
+-- to the tree too.
+indentDeclToks :: (IsToken a,HasLoc t) --(SYB.Data t)
+  => (t -> ForestSpan -> t)
+  -> t -- ^The AST (or fragment)
+  -> Tree (Entry a)    -- ^Existing token tree
+  -> Int           -- ^ (signed) number of columns to indent/dedent
+  -> (t, Tree (Entry a)) -- ^Updated AST and tokens
+indentDeclToks syncAST decl forest offset = (decl',forest'')
+  where
+    sspan = posToSpan (getLoc decl,getLocEnd decl)
+
+    -- make sure the span is in the forest
+    (forest',tree) = getSrcSpanFor forest (srcSpanToForestSpan sspan)
+
+    z = openZipperToSpan (srcSpanToForestSpan sspan) $ Z.fromTree forest'
+
+    tree' = go tree
+    -- The invariant will fail if we do not propagate this change
+    -- upward. But it needs to sync with the AST, which we do not have
+    -- the upward version of.
+    -- Instead, set the lengthChanged flag, in the parent.
+
+    -- sss = forestSpanFromEntry entry
+    -- sss' = insertLenChangedInForestSpan True sss
+    -- tree'' = Node (putForestSpanInEntry entry sss') subs
+
+    markLenChanged (Node entry subs) = (Node entry' subs)
+      where
+        sss = forestSpanFromEntry entry
+        sss' = insertLenChangedInForestSpan True sss
+        entry' = putForestSpanInEntry entry sss'
+
+    z' = Z.setTree tree' z
+    -- forest'' = Z.toTree (Z.setTree tree'' z)
+
+    forest'' = case Z.parent z' of
+                Nothing  -> Z.toTree (Z.setTree (markLenChanged $ Z.tree z' ) z' )
+                Just z'' -> Z.toTree (Z.setTree (markLenChanged $ Z.tree z'') z'')
+
+
+    -- decl' = syncAST decl (addOffsetToSpan off sspan) tree
+    decl' = syncAST decl (sf $ addOffsetToSpan off sspan)
+
+    off = (0,offset)
+
+    -- Pretty sure this could be a fold of some kind
+    go (Node (Deleted ss pg eg) sub) = (Node (Deleted (addOffsetToForestSpan off ss) pg eg) sub)
+    go (Node (Entry ss lay [])  sub) = (Node (Entry (addOffsetToForestSpan off ss) lay []) (map go sub))
+    go (Node (Entry ss lay toks) []) = (Node (Entry (addOffsetToForestSpan off ss) lay (addOffsetToToks off toks)) [])
+    go n = error $ "indentDeclToks:strange node:" ++ (show n)
+
+-- ---------------------------------------------------------------------
+
+addOffsetToSpan :: (Int,Int) -> Span -> Span
+addOffsetToSpan (lineOffset,colOffset) sspan = sspan'
+  where
+   Span (sl,sc) (el,ec) = sspan
+   sspan' = Span (sl+lineOffset,sc+colOffset) (el+lineOffset,ec+colOffset)
+
+-- ---------------------------------------------------------------------
+
 -- |Open a zipper so that its focus has the given SrcSpan in its
 -- subtree, or the location where the SrcSpan should go, if it is not
 -- in the tree.
@@ -1337,7 +1428,7 @@ goMonotonicLineToks (orow,ocol) (t1:t2:ts)
 retrieveTokensFinal :: (IsToken a) => Tree (Entry a) -> [a]
 retrieveTokensFinal forest = monotonicLineToks $ stripForestLines $ reAlignMarked
                       $ deleteGapsToks $ retrieveTokens' forest
-
+-}
 -- ---------------------------------------------------------------------
 
 reAlignMarked :: (IsToken a) => [a] -> [a]
@@ -1355,7 +1446,7 @@ reAlignMarked toks = concatMap alignOne $ groupTokensByLine toks
 -- is done. This function adjusts the spacing for the rest of the line
 -- to match as far as possible the original spacing, except for the
 -- name change.
-reAlignOneLine :: [PosToken] -> [PosToken]
+reAlignOneLine :: (IsToken a) => [a] -> [a]
 reAlignOneLine toks = go (0,0) toks
   where
     go _ [] = []
@@ -1364,6 +1455,15 @@ reAlignOneLine toks = go (0,0) toks
         (t',dc) = adjustToken t
         c' = c + dc
 
+    adjustToken tt
+      | tokenLen tt == 0 = (tt,0)
+      | otherwise = (tt',deltac)
+      where
+        Span (sl,sc) (el,ec) = getSpan tt
+        deltac = (tokenLen tt) - (ec - sc)
+        newPos = Span (sl,sc) (el,ec+deltac)
+        tt' = putSpan tt newPos
+{-
     adjustToken tt@(_,"") = (tt,0)
     adjustToken tt@(lt@(GHC.L _ t),s) = ((GHC.L newL t,s),deltac)
       where
@@ -1374,8 +1474,11 @@ reAlignOneLine toks = go (0,0) toks
         filename = fileNameFromTok tt
         newL = GHC.mkSrcSpan (GHC.mkSrcLoc filename sl sc)
                              (GHC.mkSrcLoc filename el (ec + deltac))
+-}
 
 
+
+{-
 reAlignToks :: (IsToken a) => [a] -> [a]
 reAlignToks [] = []
 reAlignToks [t] = [t]
@@ -1578,3 +1681,164 @@ newLinesToken jump tok = tok'
 
 -- ---------------------------------------------------------------------
 
+-- This stuff may be needed
+{-
+-- ---------------------------------------------------------------------
+
+-- |Open a zipper so that its focus has the given SrcSpan in its
+-- subtree, or the location where the SrcSpan should go, if it is not
+-- in the tree
+openZipperToSpan
+  :: ForestSpan
+     -> Z.TreePos Z.Full (Entry PosToken)
+     -> Z.TreePos Z.Full (Entry PosToken)
+openZipperToSpan sspan z
+  | hasVersions = openZipperToSpanAdded sspan z
+  | otherwise   = openZipperToSpanOrig sspan z
+  where
+    (vs,_ve) = forestSpanVersions sspan
+    hasVersions = vs /= 0
+
+
+-- ---------------------------------------------------------------------
+
+-- |Open a zipper so that its focus has the given SrcSpan in its
+-- subtree, or the location where the SrcSpan should go, if it is not
+-- in the tree
+openZipperToSpanOrig
+  :: ForestSpan
+     -> Z.TreePos Z.Full (Entry PosToken)
+     -> Z.TreePos Z.Full (Entry PosToken)
+openZipperToSpanOrig sspan z
+  = if (treeStartEnd (Z.tree z) == sspan) || (Z.isLeaf z)
+      then z
+      else z'
+        where
+          -- go through all of the children to find the one that
+          -- either is what we are looking for, or contains it
+
+          -- childrenAsZ = go [] (Z.firstChild z)
+          childrenAsZ = getChildrenAsZ z
+          z' = case (filter contains childrenAsZ) of
+            [] -> z -- Not directly in a subtree, this is as good as
+                    -- it gets
+            [x] -> -- exactly one, drill down
+                   openZipperToSpan sspan x
+
+            xx  -> case (filter (\zt -> (treeStartEnd $ Z.tree zt) == sspan) xx) of 
+                    [] -> -- more than one matches, see if we can get
+                          -- rid of the ones that have been lengthened
+                          case (filter (not .forestSpanLenChanged . treeStartEnd . Z.tree) xx) of
+                            [] -> z -- we tried...
+                            [w] -> openZipperToSpan sspan w
+                            -- ww -> error $ "openZipperToSpan:can't resolve:(sspan,ww)="++(show (sspan,ww))
+                            ww -> -- more than one candidate, break
+                                  -- the tie on version match
+                                  case (filter (\zt -> matchVersions sspan zt) ww) of
+                                     [v] -> openZipperToSpan sspan v
+                                     _   -> error $ "openZipperToSpan:can't resolve:(sspan,ww)="++(show (sspan,map (\zt -> treeStartEnd $ Z.tree zt) ww))
+                    [y] -> openZipperToSpan sspan y
+                    yy -> -- Multiple, check if we can separate out by
+                          -- version
+                          case (filter (\zt -> (fst $ forestSpanVersions $ treeStartEnd $ Z.tree zt) == (fst $ forestSpanVersions sspan)) xx) of
+                           -- [] -> z
+                           [] -> error $ "openZipperToSpan:no version match:(sspan,yy)=" ++ (show (sspan,yy)) -- ++AZ++
+                           [w] -> openZipperToSpan sspan w
+                           _ww -> error $ "openZipperToSpan:multiple version match:" ++ (show (sspan,yy)) -- ++AZ++
+
+          contains zn = spanContains (treeStartEnd $ Z.tree zn) sspan
+
+          matchVersions span1 z2 = isMatch
+            where
+              span2 = treeStartEnd $ Z.tree z2
+              isMatch = forestSpanVersions span1 == forestSpanVersions span2
+
+-- ---------------------------------------------------------------------
+
+-- |Open a zipper so that its focus has the given SrcSpan in its
+-- subtree, or the location where the SrcSpan should go, if it is not
+-- in the tree.
+-- In the case of an 'Above' layout with the same SrcSpan below,
+-- return that instead
+openZipperToSpanDeep
+  :: ForestSpan
+     -> Z.TreePos Z.Full (Entry PosToken)
+     -> Z.TreePos Z.Full (Entry PosToken)
+openZipperToSpanDeep sspan z = zf
+  where
+    z' = openZipperToSpan sspan z
+
+    zf = case Z.tree z' of
+           (Node (Entry _ (Above _ _ _ _) _) _) ->
+                case getChildrenAsZ z' of
+                  []  -> z'
+                  [x] -> if (treeStartEnd (Z.tree x) == sspan) then x else z'
+                  _   -> z'
+           _ -> z'
+
+
+-- ---------------------------------------------------------------------
+
+-- |Open a zipper to a SrcSpan that has been added in the tree, and
+-- thus does not necessarily fall in the logical hierarchy of the tree
+openZipperToSpanAdded
+  :: ForestSpan
+     -> Z.TreePos Z.Full (Entry PosToken)
+     -> Z.TreePos Z.Full (Entry PosToken)
+openZipperToSpanAdded sspan z = zf
+  where
+    treeAsList = getTreeSpansAsList $ Z.tree z
+
+    -- True if first span contains the second
+    myMatch (((ForestLine _ _ vs1 rs1),cs1),((ForestLine _ _ ve1 re1),ce1))
+            (((ForestLine _ _ vs2 rs2),cs2),((ForestLine _ _ ve2 re2),ce2))
+      = vs1 == vs2 && ve1 == ve2 && ((rs1,cs1) <= (rs2,cs2)) && ((re1,ce1) >= (re2,ce2))
+    tl2 = dropWhile (\(_,s) -> not (myMatch s sspan)) $ reverse treeAsList
+
+    fff [] _ = []
+    fff acc@((cd,_cs):_) (v,sspan') = if v < cd then (v,sspan'):acc
+                                               else acc
+
+    tl3 = foldl' fff [(head tl2)] tl2
+    -- tl3 now contains the chain of ForestSpans to open in order in the zipper
+
+    zf = foldl' (flip openZipperToSpanOrig) z $ map snd tl3
+
+-- ---------------------------------------------------------------------
+
+getTreeSpansAsList :: Tree (Entry PosToken) -> [(Int,ForestSpan)]
+getTreeSpansAsList = getTreeSpansAsList' 0
+
+getTreeSpansAsList' :: Int -> Tree (Entry PosToken) -> [(Int,ForestSpan)]
+getTreeSpansAsList' level (Node (Deleted sspan  _pg _eg )  _  )   = [(level,sspan)]
+getTreeSpansAsList' level (Node (Entry sspan _lay _toks) ts0) = (level,sspan)
+                       : (concatMap (getTreeSpansAsList' (level + 1)) ts0)
+
+
+-- ---------------------------------------------------------------------
+
+-- |Split a forest of trees into a (begin,middle,end) according to a
+-- ForestSpan, such that no tokens are included in begin or end belonging
+-- to the ForestSpan, and all of middle has some part of the ForestSpan
+splitForestOnSpan :: Forest (Entry PosToken) -> ForestSpan
+                  -> ([Tree (Entry PosToken)],[Tree (Entry PosToken)],[Tree (Entry PosToken)])
+splitForestOnSpan forest sspan = (beginTrees,middleTrees,endTrees)
+  where
+    (spanStart,spanEnd) = sspan
+
+    (beginTrees,rest)      = break (\t -> not $ inBeginTrees t) forest
+    (middleTrees,endTrees) = break (\t ->       inEndTrees t) rest
+
+    inBeginTrees tree = spanStart >= treeEnd
+      where
+        (_treeStart,treeEnd) = treeStartEnd tree
+
+    inEndTrees tree = spanEnd <= treeStart
+      where
+        (treeStart,_treeEnd) = treeStartEnd tree
+
+
+
+
+
+-}

@@ -2116,6 +2116,9 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
   tokenToString (_,s) = s
   showTokenStream = GHC.showRichTokenStream
 
+  markToken = ghcMarkToken
+  isMarked  = ghcIsMarked
+
 instance (HasLoc (GHC.Located a)) where
   getLoc    (GHC.L l _) = start where Span start end = g2s l
   getLocEnd (GHC.L l _) = end   where Span start end = g2s l
@@ -2127,6 +2130,37 @@ showToks toks = show $ map (\(t@(GHC.L _ tok),s) ->
 
 instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
   show t@(GHC.L _l tok) = show ((getLocatedStart t, getLocatedEnd t),tok)
+
+-- ---------------------------------------------------------------------
+
+-- |Used as a marker in the filename part of the SrcSpan on modified
+-- tokens, to trigger re-alignment when retrieving the tokens.
+tokenFileMark :: GHC.FastString
+tokenFileMark = GHC.mkFastString "HaRe"
+
+-- |Mark a token so that it can be use to trigger layout checking
+-- later when the toks are retrieved
+ghcMarkToken :: GhcPosToken -> GhcPosToken
+ghcMarkToken tok = tok'
+  where
+      (GHC.L l t,s) = tok
+      tok' = (GHC.L (GHC.RealSrcSpan l') t,s)
+
+      l' = case l of
+            GHC.RealSrcSpan ss ->
+                 GHC.mkRealSrcSpan
+                      (GHC.mkRealSrcLoc tokenFileMark (GHC.srcSpanStartLine ss)  (GHC.srcSpanStartCol ss))
+                      (GHC.mkRealSrcLoc tokenFileMark (GHC.srcSpanEndLine ss)  (GHC.srcSpanEndCol ss))
+
+            _ -> error $ "markToken: expecting a real SrcSpan, got" -- ++ (showGhc l)
+
+
+-- |Does a token have the file mark in it
+ghcIsMarked :: GhcPosToken -> Bool
+ghcIsMarked (GHC.L l _,_) =
+  case l of
+    GHC.RealSrcSpan ss -> GHC.srcSpanFile ss == tokenFileMark
+    _                  -> False
 
 -- ---------------------------------------------------------------------
 

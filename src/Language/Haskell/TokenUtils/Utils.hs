@@ -59,6 +59,9 @@ module Language.Haskell.TokenUtils.Utils
   , drawTreeCompact
   , drawTreeWithToks
   , showForestSpan
+  , drawTokenCache
+  , drawTokenCacheDetailed
+  , divideComments
   ) where
 
 import Control.Exception
@@ -69,6 +72,7 @@ import Data.Tree
 -- import Language.Haskell.TokenUtils.Layout
 -- import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
+import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
@@ -577,5 +581,28 @@ drawTreeWithToks' level (Node (Entry sspan lay toks) ts0)
 
 showLevel :: Int -> String
 showLevel level = take level (repeat ' ')
+
+-- ---------------------------------------------------------------------
+
+-- |Call drawTreeEntry on the entire token cache
+drawTokenCache :: (IsToken a) => TokenCache a -> String
+drawTokenCache tk = Map.foldlWithKey' doOne "" (tkCache tk)
+  where
+    doOne :: String -> TreeId -> Tree (Entry a) -> String
+    doOne s key val = s ++ "tree " ++ (show key) ++ ":\n"
+                        ++ (drawTreeEntry val)
+
+-- ---------------------------------------------------------------------
+
+-- |Call drawTreeEntry on the entire token cache
+drawTokenCacheDetailed :: (IsToken a) => TokenCache a -> String
+drawTokenCacheDetailed tk = Map.foldlWithKey' doOne "" (tkCache tk)
+  where
+    doOne :: (IsToken a) => String -> TreeId -> Tree (Entry a) -> String
+    doOne s key val = s ++ "tree " ++ (show key) ++ ":\n"
+                        ++ (show val)
+
+-- ---------------------------------------------------------------------
+
 
 
