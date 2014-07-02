@@ -89,7 +89,7 @@ test-suite spec
     , mtl
     , pretty
     -- experimentation
-    , kure
+    -- , kure
     , syb
 
     -- For testing the GHC version

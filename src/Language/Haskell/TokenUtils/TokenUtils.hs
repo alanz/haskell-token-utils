@@ -43,6 +43,10 @@ module Language.Haskell.TokenUtils.TokenUtils
   , nullForestSpan
   , nullForestPos
 
+
+  -- * should be in utils
+  , simpPosToForestSpan
+
   -- *
   , showTree
   , showToks
@@ -50,6 +54,7 @@ module Language.Haskell.TokenUtils.TokenUtils
   -- * Exposed for testing only
   , addNewSrcSpanAndToksAfter
   , openZipperToSpan
+  , openZipperToSpanAdded
   , retrievePrevLineToks
   , limitPrevToks
   , insertSrcSpan
@@ -62,6 +67,13 @@ module Language.Haskell.TokenUtils.TokenUtils
   , containsEnd
   , splitSubtree
   -- , splitForestOnSpan
+  , insertNodeAfter
+  , splitSubToks
+  , placeToksForSpan
+  , reAlignOneLine
+  , calcEndGap
+  , getTreeSpansAsList
+  , openZipperToSpanOrig
   ) where
 
 import Control.Exception
@@ -1501,7 +1513,7 @@ reAlignToks (tok1@((GHC.L l1 _t1),_s1):tok2@((GHC.L l2 t2),s2):ts)
      tok2' = ((GHC.L (GHC.RealSrcSpan l2') t2),s2)
 -}
 -- ---------------------------------------------------------------------
-
+{-
 -- TODO: deprecated, doing this at the Ppr level now
 adjustLinesForDeleted :: (IsToken a) => Tree (Entry a) -> Tree (Entry a)
 adjustLinesForDeleted forest = forest'
@@ -1522,7 +1534,7 @@ adjustLinesForDeleted forest = forest'
     go' ((ro,co),acc) tree = ((ro',co'),acc++[tree'])
       where
         ((ro',co'),tree') = go (ro,co) tree
-
+-}
 -- ---------------------------------------------------------------------
 
 applyOffsetToTreeShallow :: (IsToken a) => (Int,Int) -> Tree (Entry a) -> Tree (Entry a)
