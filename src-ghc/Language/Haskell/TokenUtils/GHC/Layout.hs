@@ -2130,6 +2130,7 @@ showToks toks = show $ map (\(t@(GHC.L _ tok),s) ->
 
 instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
   show t@(GHC.L _l tok) = show ((getLocatedStart t, getLocatedEnd t),tok)
+  -- show t@(GHC.L _l tok) = show ((getLocatedStart t),tok)
 
 -- ---------------------------------------------------------------------
 
@@ -2244,6 +2245,7 @@ isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
 -}
 
 
+ghcTokenLen :: (t, [a]) -> Int
 ghcTokenLen (_,s) = length s
 
 
