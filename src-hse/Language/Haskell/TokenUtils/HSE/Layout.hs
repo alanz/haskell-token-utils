@@ -7,6 +7,8 @@ module Language.Haskell.TokenUtils.HSE.Layout
   , loadFileWithMode
   , templateHaskellMode
   , TuToken(..)
+  , s2ss
+  , ss2s
   ) where
 
 -- import Control.Exception
