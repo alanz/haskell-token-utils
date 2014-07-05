@@ -2076,16 +2076,16 @@ ghcZeroToken = mkToken GHC.ITsemi (0,0) ""
 nullSrcSpan :: GHC.SrcSpan
 nullSrcSpan = GHC.UnhelpfulSpan $ GHC.mkFastString "HaRe nullSrcSpan"
 
-g2s :: GHC.SrcSpan -> Span
-g2s ss = Span (GHC.srcSpanStartLine ss',GHC.srcSpanStartCol ss')
-              (GHC.srcSpanEndLine ss',  GHC.srcSpanEndCol ss')
+g2s :: GHC.SrcSpan -> SimpSpan
+g2s ss = ((GHC.srcSpanStartLine ss',GHC.srcSpanStartCol ss'),
+          (GHC.srcSpanEndLine ss',  GHC.srcSpanEndCol ss'))
   where ss' = case ss of
           GHC.RealSrcSpan sp -> sp
           GHC.UnhelpfulSpan str -> error $ "g2 got UnhelpfulSpan" ++ (GHC.unpackFS str)
 
 
-s2g :: Span -> GHC.SrcSpan
-s2g (Span (sr,sc) (er,ec)) = sp
+s2g :: SimpSpan -> GHC.SrcSpan
+s2g ((sr,sc),(er,ec)) = sp
   where
     filename = (GHC.mkFastString "f")
     sp = GHC.mkSrcSpan (GHC.mkSrcLoc filename sr sc) (GHC.mkSrcLoc filename er ec)
@@ -2097,8 +2097,8 @@ instance Allocatable GHC.ParsedSource GhcPosToken where
   allocTokens = ghcAllocTokens
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
-  getSpan = ghcGetSpan
-  putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
+  -- getSpan = ghcGetSpan
+  -- putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
 
   tokenLen = ghcTokenLen
 
@@ -2120,8 +2120,23 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
   isMarked  = ghcIsMarked
 
 instance (HasLoc (GHC.Located a)) where
-  getLoc    (GHC.L l _) = start where Span start end = g2s l
-  getLocEnd (GHC.L l _) = end   where Span start end = g2s l
+  getLoc    (GHC.L l _) = start where ( start,_end) = g2s l
+  getLocEnd (GHC.L l _) = end   where (_start, end) = g2s l
+
+  -- getSpan = ghcGetSpan
+  putSpan (GHC.L l v)  ns = GHC.L (putSpan l ns) v
+
+instance HasLoc GHC.SrcSpan where
+  getLoc = getGhcLoc
+  getLocEnd = getGhcLocEnd
+
+  putSpan _ss ns = s2g ns
+
+instance (HasLoc (GHC.Located GHC.Token, String)) where
+  getLoc (lt,_)    = getLoc lt
+  getLocEnd (lt,_) = getLocEnd lt
+
+  putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
 
 
 -- showToks :: [PosToken] -> String
@@ -2165,10 +2180,10 @@ ghcIsMarked (GHC.L l _,_) =
 
 -- ---------------------------------------------------------------------
 
-ghcGetSpan :: GhcPosToken -> Span
+ghcGetSpan :: GhcPosToken -> SimpSpan
 ghcGetSpan (GHC.L l _,_) = g2s l
 
-ghcPutSpan :: (GHC.Located a) -> Span -> (GHC.Located a)
+ghcPutSpan :: (GHC.Located a) -> SimpSpan -> (GHC.Located a)
 ghcPutSpan (GHC.L _l x) s = (GHC.L l' x)
   where
     l' = s2g s

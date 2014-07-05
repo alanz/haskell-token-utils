@@ -6,13 +6,11 @@ import           Test.Hspec
 
 import qualified GHC        as GHC
 
-import Data.Maybe
-
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
-import Language.Haskell.TokenUtils.Pretty
+-- import Language.Haskell.TokenUtils.Pretty
 import Language.Haskell.TokenUtils.Types
-import Language.Haskell.TokenUtils.Utils
+-- import Language.Haskell.TokenUtils.Utils
 
 
 import TestUtils

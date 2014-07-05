@@ -1,3 +1,6 @@
+{-# Language FlexibleInstances #-}
+{-# Language MultiParamTypeClasses #-}
+{-# Language TypeSynonymInstances #-}
 module Language.Haskell.TokenUtils.Utils
   (
     splitToks
@@ -24,11 +27,15 @@ module Language.Haskell.TokenUtils.Utils
   , strip
   , startEndLocIncComments'
 
-  -- * SrcSpan to ForestSpan conversions
-  , sf
-  , srcSpanToForestSpan
-  , fs
-  , forestSpanToSrcSpan
+  -- * ForestSpan conversions
+  -- , sf
+  -- , srcSpanToForestSpan
+  -- , fs
+  -- , forestSpanToSrcSpan
+  , simpPosToForestSpan
+  , ss2f
+  , forestSpanToSimpPos
+  , f2ss
 
   -- * ForestSpans
   , treeIdFromForestSpan
@@ -46,11 +53,29 @@ module Language.Haskell.TokenUtils.Utils
   -- , insertForestLineInSpan
   , insertVersionsInForestSpan
   , insertLenChangedInForestSpan
+  , forestSpanFromEntry
+  , putForestSpanInEntry
+  , forestSpanVersionSet
+
+  -- *
+  , treeStartEnd
+  , groupTokensByLine
+  , tokenRow
+  , tokenCol
+  , tokenColEnd
+  , tokenPos
+  , tokenPosEnd
+  , increaseSrcSpan
+  , srcPosToSimpPos
+  , addOffsetToToks
+
 
   -- * Spans
-  , spanStartEnd
+  -- , spanStartEnd
   , combineSpans
   , nonCommentSpan
+  , getStartLoc
+  , getEndLoc
 
   -- * drawing the various trees
   , drawTreeEntry
@@ -278,8 +303,18 @@ makeGroupLayout lay ls = Node (Entry loc lay []) ls
 makeSpanFromTrees :: [LayoutTree a] -> ForestSpan
 makeSpanFromTrees ls
   = case ls of
-      [] -> sf nullSpan
+      [] -> ss2f nullSpan
       _  -> combineSpans (getTreeLoc $ head ls) (getTreeLoc $ last ls)
+
+nullSpan :: SimpSpan
+nullSpan = ((0,0),(0,0))
+
+
+getStartLoc :: SimpSpan -> SimpPos
+getStartLoc = fst
+
+getEndLoc :: SimpSpan -> SimpPos
+getEndLoc = snd
 
 -- ---------------------------------------------------------------------
 
@@ -295,16 +330,16 @@ getTreeLoc (Node (Deleted l _ _) _) = l
 
 -- ---------------------------------------------------------------------
 
-mkGroup :: (IsToken a) => Span -> Layout -> [LayoutTree a] -> LayoutTree a
-mkGroup sspan lay subs = Node (Entry (sf sspan) lay []) subs
+mkGroup :: (IsToken a) => SimpSpan -> Layout -> [LayoutTree a] -> LayoutTree a
+mkGroup sspan lay subs = Node (Entry (ss2f sspan) lay []) subs
 
 
 -- TODO: Move this into the main Utils
-makeLeaf :: (IsToken a) => Span -> Layout -> [a] -> LayoutTree a
-makeLeaf sspan lay toks = Node (Entry (sf sspan) lay toks) []
+makeLeaf :: (IsToken a) => SimpSpan -> Layout -> [a] -> LayoutTree a
+makeLeaf sspan lay toks = Node (Entry (ss2f sspan) lay toks) []
 
 -- ---------------------------------------------------------------------
-
+{-
 sf :: Span -> ForestSpan
 sf = srcSpanToForestSpan
 
@@ -324,7 +359,7 @@ forestSpanToSrcSpan ((fls,sc),(fle,ec)) = sspan
     locStart = (lineStart, sc)
     locEnd   = (lineEnd,   ec)
     sspan = Span locStart locEnd
-
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -474,6 +509,107 @@ simpPosToForestSpan :: (SimpPos,SimpPos) -> ForestSpan
 simpPosToForestSpan ((sr,sc),(er,ec))
     = ((ghcLineToForestLine sr,sc),(ghcLineToForestLine er,ec))
 
+ss2f :: (SimpPos, SimpPos) -> ForestSpan
+ss2f = simpPosToForestSpan
+
+-- --------------------------------------------------------------------
+
+forestSpanFromEntry :: Entry a -> ForestSpan
+forestSpanFromEntry (Entry   ss _ _) = ss
+forestSpanFromEntry (Deleted ss _ _) = ss
+
+putForestSpanInEntry :: Entry a -> ForestSpan -> Entry a
+putForestSpanInEntry (Entry   _ss lay toks) ssnew = (Entry ssnew lay toks)
+putForestSpanInEntry (Deleted _ss pg eg) ssnew = (Deleted ssnew pg eg)
+
+-- ---------------------------------------------------------------------
+
+-- |Strip out the version markers
+forestSpanToSimpPos :: ForestSpan -> (SimpPos,SimpPos)
+forestSpanToSimpPos ((ForestLine _ _ _ sr,sc),(ForestLine _ _ _ er,ec)) = ((sr,sc),(er,ec))
+
+f2ss :: ForestSpan -> (SimpPos, SimpPos)
+f2ss = forestSpanToSimpPos
+
+-- |Checks if the version is non-zero in either position
+forestSpanVersionSet :: ForestSpan -> Bool
+forestSpanVersionSet ((ForestLine _ _ sv _,_),(ForestLine _ _ ev _,_)) = sv /= 0 || ev /= 0
+
+-- ---------------------------------------------------------------------
+
+-- |Get the start and end position of a Tree
+-- treeStartEnd :: Tree Entry -> (SimpPos,SimpPos)
+-- treeStartEnd (Node (Entry sspan _) _) = (getGhcLoc sspan,getGhcLocEnd sspan)
+treeStartEnd :: Tree (Entry a) -> ForestSpan
+treeStartEnd (Node (Entry sspan _ _) _) = sspan
+treeStartEnd (Node (Deleted sspan _ _) _) = sspan
+
+-- ---------------------------------------------------------------------
+
+groupTokensByLine :: (IsToken a) => [a] -> [[a]]
+groupTokensByLine xs = groupBy toksOnSameLine xs
+
+toksOnSameLine :: (IsToken a) => a -> a -> Bool
+toksOnSameLine t1 t2 = tokenRow t1 == tokenRow t2
+
+
+-- ---------------------------------------------------------------------
+
+tokenRow :: (IsToken a) => a -> Int
+tokenRow tok = r
+  where ((r,_),_) = getSpan tok
+
+tokenCol :: (IsToken a) => a -> Int
+tokenCol tok = c
+  where ((_,c),_) = getSpan tok
+
+tokenColEnd :: (IsToken a) => a -> Int
+tokenColEnd tok = c
+  where (_,(_,c)) = getSpan tok
+
+tokenPos :: IsToken a => a -> SimpPos
+tokenPos tok = startPos
+  where (startPos,_) = getSpan tok
+
+tokenPosEnd :: IsToken a => a -> SimpPos
+tokenPosEnd tok = endPos
+  where (_,endPos) = getSpan tok
+
+instance (IsToken t) => Ord (LayoutTree t) where
+  compare (Node a _) (Node b _) = compare (forestSpanFromEntry a) (forestSpanFromEntry b)
+
+instance (IsToken a) => Eq (Entry a) where
+  (Entry fs1 lay1 toks1) == (Entry fs2 lay2 toks2)
+    = fs1 == fs2 && lay1 == lay2
+   && (show toks1) == (show toks2)
+
+  (Deleted fs1 pg1 lay1) == (Deleted fs2 pg2 lay2)
+    = fs1 == fs2 && pg1 == pg2 && lay1 == lay2
+
+  (==) _ _ = False
+
+instance HasLoc (Entry a) where
+  getLoc (Entry fs _ _)   = getLoc fs
+  getLoc (Deleted fs _ _) = getLoc fs
+
+  getLocEnd (Entry fs _ _)   = getLocEnd fs
+  getLocEnd (Deleted fs _ _) = getLocEnd fs
+
+  putSpan e ss = putForestSpanInEntry e (ss2f ss)
+
+instance HasLoc ForestSpan where
+  getLoc fs    = fst (forestSpanToSimpPos fs)
+  getLocEnd fs = snd (forestSpanToSimpPos fs)
+
+  putSpan _f s  = simpPosToForestSpan s
+
+-- ---------------------------------------------------------------------
+
+srcPosToSimpPos :: (Int,Int) -> (Int,Int)
+srcPosToSimpPos (sr,c) = (l,c)
+  where
+    (ForestLine _ _ _ l) = ghcLineToForestLine sr
+
 -- ---------------------------------------------------------------------
 
 strip :: (IsToken a) => [LayoutTree a] -> [LayoutTree a]
@@ -500,7 +636,6 @@ allocList xs toksIn allocFunc = r
 
         res = strip $ declLayout ++ (makeLeafFromToks tailToks)
 
-        -- doOne :: ([LayoutTree],[GhcPosToken]) -> GHC.Located a -> ([LayoutTree],[GhcPosToken])
         doOne (acc,toksOne) x = r1
           where
             l = (getLoc x,getLocEnd x)
@@ -508,14 +643,14 @@ allocList xs toksIn allocFunc = r
             layout' = (makeLeafFromToks s1) ++ [makeGroup (strip $ allocFunc x funcToks)]
             r1 = (acc ++ (strip layout'),toks')
 
-    -- r = strip $ (makeLeafFromToks s2) ++ layout ++ (makeLeafFromToks toks2)
     r = strip $ (makeLeafFromToks s2) ++ [makeGroup $ strip $ layout] ++ (makeLeafFromToks toks2)
 
 -- ---------------------------------------------------------------------
 
+{-
 spanStartEnd :: Span -> (SimpPos,SimpPos)
 spanStartEnd (Span start end) = (start,end)
-
+-}
 -- ---------------------------------------------------------------------
 
 treeIdFromForestSpan :: ForestSpan -> TreeId
@@ -606,3 +741,24 @@ drawTokenCacheDetailed tk = Map.foldlWithKey' doOne "" (tkCache tk)
 
 
 
+-- ---------------------------------------------------------------------
+
+-- |Add a constant line and column offset to a span of tokens
+addOffsetToToks :: (IsToken a) => SimpPos -> [a] -> [a]
+addOffsetToToks (r,c) toks = map (\t -> increaseSrcSpan (r,c) t) toks
+
+-- ---------------------------------------------------------------------
+
+-- |Shift the whole token by the given offset
+increaseSrcSpan :: (IsToken a) => SimpPos -> a -> a
+increaseSrcSpan (lineAmount,colAmount) posToken
+    = putSpan posToken newL
+    where
+        newL = ((startLine + lineAmount, startCol + colAmount),
+                (endLine + lineAmount, endCol + colAmount))
+
+        ((startLine, startCol),(endLine,endCol)) = getSpan posToken
+
+
+
+-- ---------------------------------------------------------------------

@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Language.Haskell.TokenUtils.Pretty
   (
-  Outputable(..)
-  , showPpr
+  -- Outputable(..)
+  showPpr
   ) where
 
 import Data.Semigroup hiding ( (<>) )
@@ -21,11 +21,6 @@ import qualified Data.Tree.DUAL.Internal as I
 
 showPpr :: Outputable a => a -> String
 showPpr a = render $ ppr a
-
--- ---------------------------------------------------------------------
-
-class Outputable a where
-  ppr :: a -> Doc
 
 -- ---------------------------------------------------------------------
 
@@ -83,9 +78,10 @@ instance Outputable DeletedSpan where
                                <+> ppr ss <+> ppr ro
                                <+> ppr p
 
-
-instance Outputable Span where
-  ppr (Span sp ep) = parens $ text "Span" <+> ppr sp <+> ppr ep
+{-
+instance Outputable SimpSpan where
+  ppr (sp,ep) = parens $ text "Span" <+> ppr sp <+> ppr ep
+-}
 
 instance (Outputable a) => Outputable (NE.NonEmpty a) where
   -- ppr (x NE.:| xs) = parens $ hang (text "NonEmpty") 1 (ppr (x:xs))

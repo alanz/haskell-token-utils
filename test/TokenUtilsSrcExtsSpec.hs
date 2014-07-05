@@ -29,6 +29,8 @@ spec = do
 
   describe "getTokensFor" $ do
     it "gets the tokens for a given srcloc, and caches them in the tree" $ do
+      pendingWith "wip"
+{-
       -- (t,toks) <- parsedFileTokenTestGhc
       ParseOk (modu,toks) <- loadFile "./test/testdata/TokenTest.hs"
 
@@ -40,6 +42,7 @@ spec = do
 
       let (tm',declToks) = getTokensFor True forest (ss2s l)
 
+      (show $ ss2s l) `shouldBe` "(19,1),(21,13)"
       (show l) `shouldBe` "test/testdata/TokenTest.hs:(19,1)-(21,13)"
       -- (showSrcSpan l) `shouldBe` "((19,1),(21,14))"
       (show decl) `shouldBe` "TokenTest.foo x y\n  = do { c <- System.IO.getChar;\n         GHC.Base.return c }"
@@ -52,6 +55,7 @@ spec = do
             "((1,1),(21,14))\n|\n"++
             "+- ((1,1),(15,17))\n|\n"++
             "`- ((19,1),(21,14))\n"
+-}
 {- ++AZ++ working through
     -- ---------------------------------
 

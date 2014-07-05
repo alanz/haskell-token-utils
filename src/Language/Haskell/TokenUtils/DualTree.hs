@@ -28,11 +28,13 @@ module Language.Haskell.TokenUtils.DualTree (
 
 import Control.Monad.State
 import qualified Data.Tree as T
+import qualified Text.PrettyPrint as P
 
 import Language.Haskell.TokenUtils.Types
-
+import Language.Haskell.TokenUtils.Utils
 
 -- ----------
+
 import Data.Tree.DUAL
 import Data.Semigroup
 import Data.Monoid.Action
@@ -45,7 +47,7 @@ import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
-data DeletedSpan = DeletedSpan Span RowOffset SimpPos
+data DeletedSpan = DeletedSpan SimpSpan RowOffset SimpPos
               deriving (Show,Eq)
 
 data Transformation = TAbove ColOffset EndOffset (Row,Col) (Row,Col) EndOffset
@@ -60,14 +62,22 @@ transform (TDeleted _sspan _ro _p)     (PToks s) = (PToks s)
 transform TAdded                       (PToks s) = (PToks s)
 -}
 
+
 -- | The value that bubbles up. This is the Span occupied by the
 -- subtree, together with a string representation of the subtree. The
 -- origin of the string is the start of the span.
 
-data Up a = Up Span Alignment (NE.NonEmpty (Line a)) [DeletedSpan]
+data Up a = Up DtSimpSpan Alignment (NE.NonEmpty (Line a)) [DeletedSpan]
           | UDeleted [DeletedSpan]
         deriving Show
 
+
+-- | We need this otherwise the SemiGroup instance for SimpSpan cause problems
+data DtSimpSpan = Dt SimpSpan
+                deriving (Eq,Show)
+
+instance Outputable DtSimpSpan where
+  ppr s = P.parens $ P.text "DtSimpSpan" P.<+> ppr s
 
 data Line a = Line Row Col RowOffset Source LineOpt [a]
 
@@ -107,8 +117,9 @@ data Prim a = PToks [a]
 type SourceTree a = DUALTree Transformation (Up a) Annot (Prim a)
 
 
-instance Semigroup Span where
-  (Span p1 _p2) <> (Span _q1 q2) = (Span p1 q2)
+instance Semigroup DtSimpSpan where
+  Dt (p1,_p2) <> Dt (_q1,q2) = Dt (p1,q2)
+
 
 instance (IsToken a) => Semigroup (Up a) where
   u1 <> u2 = combineUps u1 u2
@@ -249,15 +260,15 @@ mconcatl = foldl mappend mempty
 
 -- ---------------------------------------------------------------------
 
-fs2s :: ForestSpan -> Span
-fs2s ss = Span sp ep
+fs2s :: ForestSpan -> SimpSpan
+fs2s ss = (sp,ep)
   where
     (sp,ep) = forestSpanToSimpPos ss
 
 -- ---------------------------------------------------------------------
 
 mkUp :: (IsToken a) => ForestSpan -> [a] -> Up a
-mkUp sspan toks = Up ss a ls []
+mkUp sspan toks = Up (Dt ss) a ls []
   where
     a = ANone
     s = if forestSpanVersionSet sspan then SAdded else SOriginal
@@ -524,7 +535,7 @@ calcDelta d1 = deltaL
               _  -> (-1) + (sum $ map calcDelta' d1)
 
     calcDelta' :: DeletedSpan -> RowOffset
-    calcDelta' (DeletedSpan (Span (rs,_cs) (re,_ce)) pg (rd,_cd)) = r + 1
+    calcDelta' (DeletedSpan ((rs,_cs),(re,_ce)) pg (rd,_cd)) = r + 1
       where
         ol = re - rs
         eg = rd
@@ -533,8 +544,8 @@ calcDelta d1 = deltaL
 
 -- ---------------------------------------------------------------------
 
-mkSpan :: ForestSpan -> Span
-mkSpan ss = Span s e
+mkSpan :: ForestSpan -> SimpSpan
+mkSpan ss = (s,e)
   where
    (s,e) = forestSpanToSimpPos ss
 

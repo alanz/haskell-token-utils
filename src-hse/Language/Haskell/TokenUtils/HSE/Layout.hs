@@ -11,7 +11,7 @@ module Language.Haskell.TokenUtils.HSE.Layout
   , ss2s
   ) where
 
--- import Control.Exception
+import Control.Exception
 import Data.Generics hiding (GT)
 import Data.List
 import Data.Monoid
@@ -78,8 +78,8 @@ mergeToksAndComments toks comments = go toks comments
 -- ---------------------------------------------------------------------
 
 instance IsToken (Loc TuToken) where
-  getSpan a = ss2s $ loc a
-  putSpan (Loc _ss v) s = Loc (s2ss s) v
+  -- getSpan a = ss2s $ loc a
+  -- putSpan (Loc _ss v) s = Loc (s2ss s) v
 
   tokenLen (Loc l (T t)) = hseTokenLen (Loc l t)
   tokenLen (Loc _l (C (Comment _ _ s))) = length s -- beware of newlines
@@ -90,7 +90,7 @@ instance IsToken (Loc TuToken) where
   -- No empty tokens in HSE
   isEmpty _ = False
 
-  mkZeroToken = (Loc (s2ss nullSpan) (T (VarId "")))
+  mkZeroToken = (Loc (s2ss ((0,0),(0,0))) (T (VarId "")))
 
   isDo (Loc _ (T KW_Do))  = True
   isDo (Loc _ (T KW_MDo)) = True
@@ -117,12 +117,32 @@ instance IsToken (Loc TuToken) where
   tokenToString   = hseTokenToString
   showTokenStream = hseShowTokenStream
 
-ss2s :: SrcSpan -> Span
-ss2s (SrcSpan _fn sr sc er ec) = Span (sr,sc) (er,ec)
+  markToken = assert False undefined
+  isMarked  = assert False undefined
 
-s2ss :: Span -> SrcSpan
-s2ss (Span (sr,sc) (er,ec)) = (SrcSpan "<unknown>" sr sc er ec)
+instance HasLoc (Loc a) where
+  getLoc = getLoc . loc
+  getLocEnd = getLocEnd . loc
 
+  putSpan (Loc l v) ns = (Loc (putSpan l ns) v)
+
+instance HasLoc SrcSpan where
+  getLoc    (SrcSpan _  sl  sc _el _ec) = (sl,sc)
+  getLocEnd (SrcSpan _ _sl _sc  el  ec) = (el,ec)
+
+  putSpan _ ss = s2ss ss
+
+ss2s :: SrcSpan -> SimpSpan
+ss2s (SrcSpan _fn sr sc er ec) = ((sr,sc),(er,ec))
+
+s2ss :: SimpSpan -> SrcSpan
+s2ss ((sr,sc),(er,ec)) = (SrcSpan "<unknown>" sr sc er ec)
+
+s2f :: SrcSpan -> ForestSpan
+s2f = ss2f . ss2s
+
+f2s :: ForestSpan -> SrcSpan
+f2s = s2ss .f2ss
 
 -- |Return the length of the token, using the string representation
 -- where possible as it may have changed during a refactoing.
@@ -438,21 +458,21 @@ allocTokens' modu = r
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
     bb :: SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
-    bb (SrcSpanInfo ss _sss) vv = [Node (Entry (sf $ ss2s ss) NoChange []) vv]
+    bb (SrcSpanInfo ss _sss) vv = [Node (Entry (s2f ss) NoChange []) vv]
 
     letExp :: Exp SrcSpanInfo -> [LayoutTree (Loc TuToken)] -> [LayoutTree (Loc TuToken)]
     letExp (Let l@(SrcSpanInfo ss _) _bs _e) vv =
         case srcInfoPoints l of
           [letPos,inPos] ->
             let
-              (Span letStart _letEnd) = ss2s letPos
-              (Span _inStart inEnd)   = ss2s inPos
+              (letStart, _letEnd) = ss2s letPos
+              (_inStart, inEnd)   = ss2s inPos
               io = FromAlignCol letStart
-              (Span lstart lend) = ss2s ss
+              (lstart, lend) = ss2s ss
               eo = FromAlignCol inEnd
             in
                -- trace ("let:" ++ show (ss,map treeStartEnd (subTreeOnly vv)))
-               [Node (Entry (sf $ ss2s ss) (Above io lstart lend eo) []) [(makeGroup vv)]]
+               [Node (Entry (s2f ss) (Above io lstart lend eo) []) [(makeGroup vv)]]
           _ -> vv
     letExp _ vv = vv
 
@@ -463,17 +483,16 @@ allocTokens' modu = r
       case srcInfoPoints l of
         (doPos:_) ->
           let
-            (Span doStart _doEnd) = ss2s doPos
-            -- (Span _ ssEnd) = ss2s ss
+            (doStart, _doEnd) = ss2s doPos
             io = FromAlignCol doStart
-            (Span lstart lend) = forestSpanToSrcSpan $ makeSpanFromTrees subs
-
+            s = makeSpanFromTrees subs
+            (lstart, lend) = f2ss s
             eo = None -- will be calculated later
             subs = concatMap allocTokens' stmts
           in
              -- trace ("do:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
-             [makeGroup [Node (Entry (sf $ ss2s doPos) NoChange []) [],
-                         Node (Entry (sf $ (Span lstart lend)) (Above io lstart lend eo) []) subs]]
+             [makeGroup [Node (Entry (s2f doPos) NoChange []) [],
+                         Node (Entry s (Above io lstart lend eo) []) subs]]
         _ -> vv
 
     expr _ vv = vv
@@ -491,11 +510,13 @@ allocTokens' modu = r
           (Just bd@(BDecls (SrcSpanInfo _bs _) _)) -> [makeGroup (treeWhere ++ treeDecls)]
             where
               wherePos = ghead "redf.match" (srcInfoPoints l)
-              treeWhere = [Node (Entry (sf $ ss2s wherePos) NoChange []) [] ]
+              treeWhere = [Node (Entry (s2f wherePos) NoChange []) [] ]
               treeSubDecls = subTreeOnly (allocTokens' bd)
               treeDecls = [makeGroupLayout (Above io lstart lend eo) treeSubDecls]
-              (Span lstart lend) = fs $ makeSpanFromTrees treeSubDecls
-              (Span whereStart _whereEnd) = ss2s wherePos
+              s = makeSpanFromTrees treeSubDecls
+              (lstart, lend) = f2ss s
+
+              (whereStart, _whereEnd) = ss2s wherePos
               io = FromAlignCol whereStart
           Just (IPBinds l binds) -> []
           Nothing -> []
@@ -552,11 +573,12 @@ allocTokens' modu = r
             treeRhs  = allocTokens' rhs
             treeWhereClause = [makeGroup (treeWhere ++ treeDecls)]
               where
-                treeWhere = [Node (Entry (sf $ ss2s wherePos) NoChange []) [] ]
+                treeWhere = [Node (Entry (s2f wherePos) NoChange []) [] ]
                 treeSubDecls = subTreeOnly (allocTokens' bd)
                 treeDecls = [makeGroupLayout (Above io lstart lend eo) treeSubDecls]
-                (Span lstart lend) = fs $ makeSpanFromTrees treeSubDecls
-            (Span whereStart _whereEnd) = ss2s wherePos
+                s = makeSpanFromTrees treeSubDecls
+                (lstart,lend) = f2ss s
+            (whereStart,_whereEnd) = ss2s wherePos
             io = FromAlignCol whereStart
             eo = None -- will be calculated later FromAlignCol (0,0)
             subs = treePat ++ treeType ++ treeRhs ++ treeWhereClause
@@ -575,14 +597,14 @@ allocTokens' modu = r
       case srcInfoPoints l of
         (letPos:_) ->
           let
-            (Span letStart _letEnd) = ss2s letPos
+            (letStart, _letEnd) = ss2s letPos
             io = FromAlignCol letStart
-            (Span lstart lend) = fs $ makeSpanFromTrees (subTreeOnly vv)
+            (lstart, lend) = f2ss $ makeSpanFromTrees (subTreeOnly vv)
 
             eo = None -- will be calculated later
           in
              -- trace ("stmt:LetStmt:" ++ show (ss,map treeStartEnd (subTreeOnly vv),srcInfoPoints l))
-             [makeGroup [Node (Entry (sf $ ss2s letPos) NoChange []) [],
+             [makeGroup [Node (Entry (s2f letPos) NoChange []) [],
                          makeGroupLayout (Above io lstart lend eo) (subTreeOnly vv)]]
         _ -> error $ "allocTokens'.stmt:LetStmt:missing statements:" ++ show (l,_binds)
         -- _ -> vv
@@ -600,8 +622,8 @@ allocTokens' modu = r
     redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
       =
         let
-          (as,ae) = spanStartEnd $ fs $ treeStartEnd a
-          (bs,be) = spanStartEnd $ fs $ treeStartEnd b
+          (as,ae) = treeStartEnd a
+          (bs,be) = treeStartEnd b
           ss = combineSpans s1 s2
           ret =
            case (compare as bs,compare ae be) of
