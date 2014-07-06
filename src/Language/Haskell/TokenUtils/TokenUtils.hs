@@ -1,35 +1,33 @@
 module Language.Haskell.TokenUtils.TokenUtils
   (
   -- * Creating
-  --  initTokenCache
     initTokenCacheLayout
   , mkTreeFromTokens
   , mkTreeFromSpanTokens
 
-  -- * High level functions for use by clients
-  , replaceTokenInCache
-  , putToksInCache
-  , getTokensForNoIntros
-  , getTokensFor -- no invariant
-  , getTokensBefore
-  , addToksAfterSrcSpan
-  , removeToksFromCache
-  , indentDeclToks
-
-
-
-
-  -- * Operations at 'TokenCache' level
+  -- * Module type
   , Positioning (..)
   , ReversedToks(..)
-  , reverseToks
-  , unReverseToks
-  , reversedToks
+
+  -- * High level functions for use by clients, at TokenCache level
   , putToksInCache
   , replaceTokenInCache
   , removeToksFromCache
+  , getTokensFromCache
+  , getTokensNoIntrosFromCache
+  , getTokensBeforeFromCache
+  , addTokensAfterSpanInCache
+
+  , getTokensForNoIntros -- could be no longer required
+  , getTokensFor -- no invariant
+  , getTokensBefore
+
+
+  -- * High level functions for use by clients, at LayoutTree level
+
+
+  -- * Operations at 'LayoutTree' level
   , replaceTokenForSrcSpan
-  , invariant
   , getSrcSpanFor
   , indentDeclToks
 
@@ -38,6 +36,10 @@ module Language.Haskell.TokenUtils.TokenUtils
   , reIndentToks
 
   -- *
+  , invariant
+  , reverseToks
+  , unReverseToks
+  , reversedToks
   , retrieveTokensInterim
   , getTokensForNoIntros
   , getTokensFor
@@ -104,6 +106,101 @@ import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Tree.Zipper as Z
 
+-- =====================================================================
+-- TokenCache operations
+
+{-# DEPRECATED initTokenCache "residual from tests" #-}
+-- |Initialise a `TokenCache` from tokens only. Does not generate a
+-- layout-aware tree due to missing AST
+initTokenCache :: (IsToken a) => [a] -> TokenCache a
+initTokenCache toks = TK (Map.fromList [((TId 0),(mkTreeFromTokens toks))]) (TId 0)
+
+-- ---------------------------------------------------------------------
+-- |The primary data structure is the 'TokenCache'. This holds the
+-- evolving forest of modified 'LayoutTree's. Each concrete
+-- implementation should provide a function to generate a 'LayoutTree'
+-- from its specific AST and tokens.
+initTokenCacheLayout :: (IsToken a) => Tree (Entry a) -> TokenCache a
+initTokenCacheLayout tree = TK (Map.fromList [((TId 0),tree)]) (TId 0)
+
+
+-- ---------------------------------------------------------------------
+
+putToksInCache :: (IsToken a) => TokenCache a -> SimpSpan -> [a] -> (TokenCache a,SimpSpan)
+putToksInCache tk sspan toks = (tk'',newSpan)
+  where
+   forest = getTreeFromCache sspan tk
+   (forest',newSpan,oldTree) = updateTokensForSrcSpan forest sspan toks
+   tk' = replaceTreeInCache sspan forest' tk
+   tk'' = stash tk' oldTree
+
+-- ---------------------------------------------------------------------
+
+replaceTokenInCache :: (IsToken a) => TokenCache a -> SimpSpan -> a -> TokenCache a
+replaceTokenInCache tk sspan tok = tk'
+  where
+   forest = getTreeFromCache sspan tk
+   forest' = replaceTokenForSrcSpan forest sspan tok
+   tk' = replaceTreeInCache sspan forest' tk
+
+-- ---------------------------------------------------------------------
+
+removeToksFromCache :: (IsToken a) => TokenCache a -> SimpSpan -> TokenCache a
+removeToksFromCache tk sspan = tk''
+  where
+    forest = getTreeFromCache sspan tk
+    (forest',oldTree) = removeSrcSpan forest (ss2f sspan)
+    tk' = replaceTreeInCache sspan forest' tk
+    tk'' = stash tk' oldTree
+
+-- ---------------------------------------------------------------------
+
+getTokensFromCache :: (IsToken a) => Bool -> TokenCache a -> SimpSpan -> (TokenCache a,[a])
+getTokensFromCache checkInvariant tk sspan = (tk',tokens)
+  where
+    forest = getTreeFromCache sspan tk
+    (forest',tokens) = getTokensFor checkInvariant forest sspan
+    tk' = replaceTreeInCache sspan forest' tk
+
+-- ---------------------------------------------------------------------
+
+getTokensNoIntrosFromCache :: (IsToken a) => Bool -> TokenCache a -> SimpSpan -> (TokenCache a,[a])
+getTokensNoIntrosFromCache checkInvariant tk sspan = (tk',tokens)
+  where
+    forest = getTreeFromCache sspan tk
+    (forest',tokens) = getTokensForNoIntros checkInvariant forest sspan
+    tk' = replaceTreeInCache sspan forest' tk
+
+-- ---------------------------------------------------------------------
+
+getTokensBeforeFromCache :: (IsToken a) => TokenCache a -> SimpSpan -> (TokenCache a,ReversedToks a)
+getTokensBeforeFromCache tk sspan = (tk',tokens)
+  where
+    forest = getTreeFromCache sspan tk
+    (forest',tokens) = getTokensBefore forest sspan
+    tk' = replaceTreeInCache sspan forest' tk
+
+-- ---------------------------------------------------------------------
+
+addTokensAfterSpanInCache :: (IsToken a)
+   => TokenCache a
+  -> SimpSpan -- ^Preceding location for new tokens
+  -> Positioning
+  -> [a] -- ^New tokens to be added
+  -> (TokenCache a, SimpSpan) -- ^ updated TokenCache and SrcSpan location for
+                               -- the new tokens in the TokenTree
+addTokensAfterSpanInCache tk oldSpan pos toks = (tk',newSpan)
+  where
+    forest = getTreeFromCache oldSpan tk
+    (forest',newSpan) = addToksAfterSrcSpan forest oldSpan pos toks
+    tk' = replaceTreeInCache oldSpan forest' tk
+
+-- =====================================================================
+-- LayoutTree operations
+
+
+-- =====================================================================
+
 -- ---------------------------------------------------------------------
 
 -- |Keep track of when tokens are reversed, to avoid confusion
@@ -139,23 +236,6 @@ data Positioning = PlaceAdjacent -- ^Only a single space between the
                    -- start, num lines to add at the end
                    -- relative to the indent level of the prior line
                  deriving (Show)
-
--- ---------------------------------------------------------------------
-
-
-{-# DEPRECATED initTokenCache "residual from tests" #-}
--- |Initialise a `TokenCache` from tokens only. Does not generate a
--- layout-aware tree due to missing AST
-initTokenCache :: (IsToken a) => [a] -> TokenCache a
-initTokenCache toks = TK (Map.fromList [((TId 0),(mkTreeFromTokens toks))]) (TId 0)
-
--- ---------------------------------------------------------------------
--- |The primary data structure is the 'TokenCache'. This holds the
--- evolving forest of modified 'LayoutTree's. Each concrete
--- implementation should provide a function to generate a 'LayoutTree'
--- from its specific AST and tokens.
-initTokenCacheLayout :: (IsToken a) => Tree (Entry a) -> TokenCache a
-initTokenCacheLayout tree = TK (Map.fromList [((TId 0),tree)]) (TId 0)
 
 -- ---------------------------------------------------------------------
 
@@ -416,35 +496,6 @@ replaceTokenForSrcSpan forest sspan tok = forest'
 
     zf = Z.setTree (Node (Entry tspan lay toks') []) z'
     forest' = Z.toTree zf
-
--- ---------------------------------------------------------------------
-
-replaceTokenInCache :: (IsToken a) => TokenCache a -> SimpSpan -> a -> TokenCache a
-replaceTokenInCache tk sspan tok = tk'
-  where
-   forest = getTreeFromCache sspan tk
-   forest' = replaceTokenForSrcSpan forest sspan tok
-   tk' = replaceTreeInCache sspan forest' tk
-
--- ---------------------------------------------------------------------
-
-putToksInCache :: (IsToken a) => TokenCache a -> SimpSpan -> [a] -> (TokenCache a,SimpSpan)
-putToksInCache tk sspan toks = (tk'',newSpan)
-  where
-   forest = getTreeFromCache sspan tk
-   (forest',newSpan,oldTree) = updateTokensForSrcSpan forest sspan toks
-   tk' = replaceTreeInCache sspan forest' tk
-   tk'' = stash tk' oldTree
-
--- ---------------------------------------------------------------------
-
-removeToksFromCache :: (IsToken a) => TokenCache a -> SimpSpan -> TokenCache a
-removeToksFromCache tk sspan = tk''
-  where
-    forest = getTreeFromCache sspan tk
-    (forest',oldTree) = removeSrcSpan forest (ss2f sspan)
-    tk' = replaceTreeInCache sspan forest' tk
-    tk'' = stash tk' oldTree
 
 -- ---------------------------------------------------------------------
 
