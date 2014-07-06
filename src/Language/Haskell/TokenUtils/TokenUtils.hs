@@ -18,9 +18,6 @@ module Language.Haskell.TokenUtils.TokenUtils
   , getTokensBeforeFromCache
   , addTokensAfterSpanInCache
 
-  , getTokensForNoIntros -- could be no longer required
-  , getTokensFor -- no invariant
-  , getTokensBefore
 
 
   -- * High level functions for use by clients, at LayoutTree level
@@ -41,8 +38,8 @@ module Language.Haskell.TokenUtils.TokenUtils
   , unReverseToks
   , reversedToks
   , retrieveTokensInterim
-  , getTokensForNoIntros
-  , getTokensFor
+  , getTokensForNoIntros -- could be no longer required
+  , getTokensFor -- no invariant
   , getTokensBefore
   -- , retrieveTokensFinal
   , reAlignMarked
