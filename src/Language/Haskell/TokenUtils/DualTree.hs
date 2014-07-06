@@ -3,7 +3,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Language.Haskell.TokenUtils.DualTree (
-    layoutTreeToSourceTree
+    renderLayoutTree
+  , layoutTreeToSourceTree
   , retrieveLinesFromLayoutTree
   , retrieveLines
   , renderLines
@@ -137,6 +138,12 @@ instance (Action Transformation (Up a)) where
       s' = NE.map (\(Line r c o ss _f toks) -> (Line r c o ss OGroup toks)) s
 
   act (TAbove _co _bo _p1 _p2 _eo) (UDeleted ds) = UDeleted ds
+
+
+-- ---------------------------------------------------------------------
+
+renderLayoutTree :: (IsToken a) => LayoutTree a -> String
+renderLayoutTree = renderSourceTree . layoutTreeToSourceTree
 
 -- ---------------------------------------------------------------------
 

@@ -35,13 +35,15 @@ import Debug.Trace
 data TuToken = T Token | C Comment
              deriving (Show,Eq)
 
+-- |Load a file using 'haskell-src-exts' to provide both the AST and tokens
 loadFile :: FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
 loadFile file = loadFileWithMode defaultParseMode file
 
-templateHaskellMode :: ParseMode
-templateHaskellMode
-  = defaultParseMode { extensions = (EnableExtension TemplateHaskell):(extensions defaultParseMode)}
+-- ---------------------------------------------------------------------
 
+-- |Load a file using 'haskell-src-exts' to provide both the AST and
+-- tokens, using a custom loading mode allowing extensions to be
+-- enabled
 loadFileWithMode :: ParseMode -> FilePath -> IO (ParseResult (Module SrcSpanInfo, [Loc TuToken]))
 loadFileWithMode parseMode file = do
   src <- readFile file
@@ -54,6 +56,12 @@ loadFileWithMode parseMode file = do
   case res of
     ParseOk (m, comments,toks) -> return $ ParseOk (m, (mergeToksAndComments toks comments))
     ParseFailed l s -> return (ParseFailed l s)
+
+-- ---------------------------------------------------------------------
+
+templateHaskellMode :: ParseMode
+templateHaskellMode
+  = defaultParseMode { extensions = (EnableExtension TemplateHaskell):(extensions defaultParseMode)}
 
 
 -- ---------------------------------------------------------------------

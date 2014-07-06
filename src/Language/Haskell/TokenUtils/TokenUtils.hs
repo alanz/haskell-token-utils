@@ -1,10 +1,23 @@
 module Language.Haskell.TokenUtils.TokenUtils
   (
   -- * Creating
-    initTokenCache
-  , initTokenCacheLayout
+  --  initTokenCache
+    initTokenCacheLayout
   , mkTreeFromTokens
   , mkTreeFromSpanTokens
+
+  -- * High level functions for use by clients
+  , replaceTokenInCache
+  , putToksInCache
+  , getTokensForNoIntros
+  , getTokensFor -- no invariant
+  , getTokensBefore
+  , addToksAfterSrcSpan
+  , removeToksFromCache
+  , indentDeclToks
+
+
+
 
   -- * Operations at 'TokenCache' level
   , Positioning (..)
@@ -74,6 +87,9 @@ module Language.Haskell.TokenUtils.TokenUtils
   , calcEndGap
   , getTreeSpansAsList
   , openZipperToSpanOrig
+
+  -- * exported for historical tests only
+  , initTokenCache
   ) where
 
 import Control.Exception
@@ -126,9 +142,18 @@ data Positioning = PlaceAdjacent -- ^Only a single space between the
 
 -- ---------------------------------------------------------------------
 
+
+{-# DEPRECATED initTokenCache "residual from tests" #-}
+-- |Initialise a `TokenCache` from tokens only. Does not generate a
+-- layout-aware tree due to missing AST
 initTokenCache :: (IsToken a) => [a] -> TokenCache a
 initTokenCache toks = TK (Map.fromList [((TId 0),(mkTreeFromTokens toks))]) (TId 0)
 
+-- ---------------------------------------------------------------------
+-- |The primary data structure is the 'TokenCache'. This holds the
+-- evolving forest of modified 'LayoutTree's. Each concrete
+-- implementation should provide a function to generate a 'LayoutTree'
+-- from its specific AST and tokens.
 initTokenCacheLayout :: (IsToken a) => Tree (Entry a) -> TokenCache a
 initTokenCacheLayout tree = TK (Map.fromList [((TId 0),tree)]) (TId 0)
 

@@ -149,8 +149,10 @@ data TokenCache a = TK
 
 -- ---------------------------------------------------------------------
 
+
 class Allocatable b a where
-  allocTokens :: b -> [a] -> LayoutTree a
+  -- |Construct a `LayoutTree` from a Haskell AST and a stream of tokens.
+  allocTokens :: (IsToken a) => b -> [a] -> LayoutTree a
 
 
 -- |The IsToken class captures the different token type in use. For
@@ -158,9 +160,6 @@ class Allocatable b a where
 -- namely [(GHC.Located GHC.Token, String)]
 -- For haskell-src-exts this is the reult of `lexTokenStream`, namely `[HSE.Loc HSE.Token]`
 class (Show a,HasLoc a) => IsToken a where
-  -- TODO: get rid of these and put a HasLoc requirement
-  -- getSpan     :: a -> Span
-  -- putSpan     :: a -> Span -> a
 
   -- |tokenLen returns the length of the string representation of the
   -- token, not just the difference in the location, as the string may

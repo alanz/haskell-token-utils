@@ -6,13 +6,13 @@ import           Test.Hspec
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.HSE.Layout
 import Language.Haskell.TokenUtils.Layout
-import Language.Haskell.TokenUtils.Pretty
-import Language.Haskell.TokenUtils.TokenUtils
+-- import Language.Haskell.TokenUtils.Pretty
+-- import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
-import Language.Haskell.TokenUtils.Utils
+-- import Language.Haskell.TokenUtils.Utils
 
 import Language.Haskell.Exts.Annotated
-import Language.Haskell.Exts.Pretty
+-- import Language.Haskell.Exts.Pretty
 
 import TestUtils
 

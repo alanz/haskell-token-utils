@@ -10,12 +10,12 @@
 --
 
 module Language.Haskell.TokenUtils.GHC.Layout (
-    initTokenLayout
+  --   initTokenLayout
   -- , nullTokenLayout
-  , ghcAllocTokens
-  , retrieveTokens
-  , getLoc
-  , nullSrcSpan
+  -- , ghcAllocTokens
+  -- , retrieveTokens
+  -- , getLoc
+    nullSrcSpan
   , mkToken
 
   -- * For testing
@@ -277,6 +277,8 @@ instance GHC.Outputable EndOffset where
                                 GHC.<+> GHC.ppr pos
 
 -- ---------------------------------------------------------------------
+
+-- |Construct the initial `LayoutTree' for use by 'initTokenCacheLayout'
 initTokenLayout :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree GhcPosToken
 initTokenLayout parsed toks = (allocTokens parsed toks)
 
@@ -1986,17 +1988,6 @@ allocMixedList xs toksIn = r
     r = strip $ layout ++ (makeLeafFromToks toksFin)
 
 -- ---------------------------------------------------------------------
-{-
-retrieveTokens :: LayoutTree -> [a]
-retrieveTokens layout = go [] layout
-  where
-    -- go acc (Group _ _ xs)  = acc ++ (concat $ map (go []) xs)
-    -- go acc (Leaf _ _ toks) = acc ++ toks
-    go acc (Node (Entry _ _ []  ) xs) = acc ++ (concat $ map (go []) xs)
-    go acc (Node (Entry _ _ toks)  _) = acc ++ toks
-    go acc (Node (Deleted _ _ _)   _) = acc
--}
--- ---------------------------------------------------------------------
 
 -- | gets the (row,col) of the start of the @GHC.SrcSpan@, or (-1,-1)
 -- if there is an @GHC.UnhelpfulSpan@
@@ -2239,27 +2230,9 @@ ghcIsComment ((GHC.L _ _),_s)                         = False
 
 
 -- ---------------------------------------------------------------------
-{-
-isWhiteSpace :: GhcPosToken -> Bool
-isWhiteSpace tok = isComment tok || isEmpty tok
 
-notWhiteSpace :: GhcPosToken -> Bool
-notWhiteSpace tok = not (isWhiteSpace tok)
-
-isWhiteSpaceOrIgnored :: GhcPosToken -> Bool
-isWhiteSpaceOrIgnored tok = isWhiteSpace tok || isIgnored tok
-
--- Tokens that are ignored when allocating tokens to a SrcSpan
-isIgnored :: GhcPosToken -> Bool
-isIgnored tok = isThen tok || isElse tok || isIn tok || isDo tok
-
--- | Tokens that are ignored when determining the first non-comment
--- token in a span
-isIgnoredNonComment :: GhcPosToken -> Bool
-isIgnoredNonComment tok = isThen tok || isElse tok || isWhiteSpace tok
--}
-
-
+-- |Get the current length of the token, based on its String, rather
+-- than the original span length.
 ghcTokenLen :: (t, [a]) -> Int
 ghcTokenLen (_,s) = length s
 
