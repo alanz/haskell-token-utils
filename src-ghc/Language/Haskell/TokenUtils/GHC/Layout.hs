@@ -18,6 +18,12 @@ module Language.Haskell.TokenUtils.GHC.Layout (
     nullSrcSpan
   , mkToken
 
+  -- * Span conversion functions
+  , gs2f,f2gs
+  , gs2ss,ss2gs
+
+  , insertForestLineInSrcSpan
+
   -- * For testing
   , addEndOffsets
   ) where
@@ -2237,3 +2243,59 @@ ghcTokenLen :: (t, [a]) -> Int
 ghcTokenLen (_,s) = length s
 
 
+-- ---------------------------------------------------------------------
+
+gs2f :: GHC.SrcSpan -> ForestSpan
+gs2f = ghcSrcSpanToForestSpan
+
+f2gs :: ForestSpan -> GHC.SrcSpan
+f2gs = forestSpanToGhcSrcSpan
+
+gs2ss :: GHC.SrcSpan -> SimpSpan
+gs2ss ss = ((getGhcLoc ss),(getGhcLocEnd ss))
+
+ss2gs :: SimpSpan -> GHC.SrcSpan
+ss2gs ((sr,sc),(er,ec)) = GHC.mkSrcSpan locStart locEnd
+  where
+    fname = GHC.mkFastString "foo"
+    locStart = GHC.mkSrcLoc fname sr sc
+    locEnd   = GHC.mkSrcLoc fname er ec
+
+-- ---------------------------------------------------------------------
+
+ghcSrcSpanToForestSpan :: GHC.SrcSpan -> ForestSpan
+ghcSrcSpanToForestSpan sspan = ((ghcLineToForestLine startRow,startCol),(ghcLineToForestLine endRow,endCol))
+  where
+    (startRow,startCol) = getGhcLoc sspan
+    (endRow,endCol)     = getGhcLocEnd sspan
+
+-- ---------------------------------------------------------------------
+
+forestSpanToGhcSrcSpan :: ForestSpan -> GHC.SrcSpan
+forestSpanToGhcSrcSpan ((fls,sc),(fle,ec)) = sspan
+  where
+    lineStart = forestLineToGhcLine fls
+    lineEnd   = forestLineToGhcLine fle
+    locStart = GHC.mkSrcLoc (GHC.mkFastString "foo") lineStart sc
+    locEnd   = GHC.mkSrcLoc (GHC.mkFastString "foo") lineEnd   ec
+    sspan = GHC.mkSrcSpan locStart locEnd
+
+-- ---------------------------------------------------------------------
+
+
+-- | Replace any ForestLine flags already in a SrcSpan with the given ones
+-- TODO ++AZ++ : should not be required, convert to SimSpan then use that
+insertForestLineInSrcSpan :: ForestLine -> GHC.SrcSpan -> GHC.SrcSpan
+insertForestLineInSrcSpan fl@(ForestLine ch tr v _l) (GHC.RealSrcSpan ss) = ss'
+  where
+    lineStart = forestLineToGhcLine fl
+    (_,(ForestLine _ _ _ le,_)) = ghcSrcSpanToForestSpan (GHC.RealSrcSpan ss)
+    lineEnd   = forestLineToGhcLine (ForestLine ch tr v le)
+    locStart = GHC.mkSrcLoc (GHC.srcSpanFile ss) lineStart (GHC.srcSpanStartCol ss)
+    locEnd   = GHC.mkSrcLoc (GHC.srcSpanFile ss) lineEnd   (GHC.srcSpanEndCol ss)
+    ss' = GHC.mkSrcSpan locStart locEnd
+
+insertForestLineInSrcSpan _ _ss = error $ "insertForestLineInSrcSpan: expecting a RealSrcSpan, got:" -- ++ (showGhc ss)
+
+
+-- EOF
