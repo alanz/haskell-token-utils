@@ -9,6 +9,8 @@ module TestUtils
        , catchException
        , mkHseSrcSpan
        , basicTokenise
+       , tokenise
+       , realSrcLocFromTok
        , hex
        , unspace
        , PosToken
@@ -244,6 +246,12 @@ lexStringToRichTokens startLoc str = do
         GHC.PFailed _srcSpan _msg -> error $ "lexStringToRichTokens:" -- ++ (show $ GHC.ppr msg)
 
         -- addSourceToTokens :: RealSrcLoc -> StringBuffer -> [Located Token] -> [(Located Token, String)]
+
+-- ---------------------------------------------------------------------
+
+realSrcLocFromTok :: PosToken -> GHC.RealSrcLoc
+realSrcLocFromTok (GHC.L (GHC.RealSrcSpan srcspan) _,_) = GHC.realSrcSpanStart srcspan
+realSrcLocFromTok (GHC.L _ _,_) = GHC.mkRealSrcLoc (GHC.mkFastString "") 1 1
 
 
 -- EOF
