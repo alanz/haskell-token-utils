@@ -8,10 +8,10 @@ module TestUtils
        , testCradle
        , catchException
        , mkHseSrcSpan
-
+       , basicTokenise
        , hex
        , unspace
-
+       , PosToken
        , pwd
        , cd
        , bypassGHCBug7351
@@ -19,10 +19,13 @@ module TestUtils
 
 
 import GHC.Paths ( libdir )
-import qualified DynFlags              as GHC
-import qualified FastString            as GHC
-import qualified GHC                   as GHC
-import qualified MonadUtils            as GHC
+import qualified DynFlags      as GHC
+import qualified FastString    as GHC
+import qualified GHC           as GHC
+import qualified GHC.Paths     as GHC
+import qualified Lexer         as GHC
+import qualified SrcLoc        as GHC
+import qualified StringBuffer  as GHC
 
 import Control.Monad
 import Data.Algorithm.Diff
@@ -34,6 +37,7 @@ import Language.Haskell.GhcMod
 import Language.Haskell.TokenUtils.API
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.GHC.Layout
+import Language.Haskell.TokenUtils.Utils
 
 import qualified Language.Haskell.Exts.Annotated as HSE
 
@@ -43,9 +47,8 @@ import qualified Data.Map as Map
 
 -- ---------------------------------------------------------------------
 
--- Define the type family for use with GHC
+type PosToken = (GHC.Located GHC.Token, String)
 
--- instance RoundTrip
 -- ---------------------------------------------------------------------
 
 pwd :: IO FilePath
@@ -181,6 +184,67 @@ getLocatedEnd (GHC.L l _) = getGhcLocEnd l
 
 mkHseSrcSpan :: SimpPos -> SimpPos -> HSE.SrcSpan
 mkHseSrcSpan (sr,sc) (er,ec) = (HSE.mkSrcSpan (HSE.SrcLoc "filename" sr sc) (HSE.SrcLoc "filename" er ec))
+
+-- ---------------------------------------------------------------------
+
+-- |Convert a string into a set of Haskell tokens. It has default
+-- position and offset, since it will be stitched into place in TokenUtils
+basicTokenise :: String -> IO [PosToken]
+basicTokenise str = tokenise startPos 0 False str
+  where
+    -- startPos = (GHC.mkRealSrcLoc tokenFileMark 0 1)
+    startPos = (GHC.mkRealSrcLoc (GHC.mkFastString "foo") 0 1)
+
+-- ---------------------------------------------------------------------
+
+-- | Convert a string into a set of Haskell tokens, following the
+-- given position, with each line indented by a given column offset if
+-- required
+-- TODO: replace 'colOffset withFirstLineIndent' with a Maybe Int ++AZ++
+tokenise :: GHC.RealSrcLoc -> Int -> Bool -> String -> IO [PosToken]
+tokenise  _ _ _ [] = return []
+tokenise  startPos colOffset withFirstLineIndent str
+  = let str' = case lines str of
+                    (ln:[]) -> addIndent ln ++ if glast "tokenise" str=='\n' then "\n" else ""
+                    (ln:lns)-> addIndent ln ++ "\n" ++ concatMap (\n->replicate colOffset ' '++n++"\n") lns
+                    []      -> []
+        str'' = if glast "tokenise" str' == '\n' && glast "tokenise" str /= '\n'
+                  then genericTake (length str' -1) str'
+                  else str'
+        toks = lexStringToRichTokens startPos str''
+
+    in toks
+    -- in error $ "tokenise:" ++ (showToks $ head toks)
+   where
+     addIndent ln = if withFirstLineIndent
+                      then replicate colOffset ' '++ ln
+                      else ln
+
+-- ---------------------------------------------------------------------
+
+
+lexStringToRichTokens :: GHC.RealSrcLoc -> String -> IO [PosToken]
+lexStringToRichTokens startLoc str = do
+  -- error $ "lexStringToRichTokens: (startLoc,str)=" ++ (showGhc (startLoc,str)) -- ++AZ
+#if __GLASGOW_HASKELL__ > 704
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
+#else
+  GHC.defaultErrorHandler GHC.defaultLogAction $ do
+#endif
+    GHC.runGhc (Just GHC.libdir) $ do
+      dflags <- GHC.getSessionDynFlags
+      let dflags' = foldl GHC.xopt_set dflags
+                    [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
+      _ <- GHC.setSessionDynFlags dflags'
+
+      -- lexTokenStream :: StringBuffer -> RealSrcLoc -> DynFlags -> ParseResult [Located Token]
+      let res = GHC.lexTokenStream (GHC.stringToStringBuffer str) startLoc dflags'
+      case res of
+        GHC.POk _ toks -> return $ GHC.addSourceToTokens startLoc (GHC.stringToStringBuffer str) toks 
+        GHC.PFailed _srcSpan _msg -> error $ "lexStringToRichTokens:" -- ++ (show $ GHC.ppr msg)
+
+        -- addSourceToTokens :: RealSrcLoc -> StringBuffer -> [Located Token] -> [(Located Token, String)]
+
 
 -- EOF
 

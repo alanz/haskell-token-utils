@@ -23,6 +23,8 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , gs2ss,ss2gs
 
   , insertForestLineInSrcSpan
+  , showSrcSpan
+  , showSrcSpanF
 
   -- * For testing
   , addEndOffsets
@@ -2296,6 +2298,21 @@ insertForestLineInSrcSpan fl@(ForestLine ch tr v _l) (GHC.RealSrcSpan ss) = ss'
     ss' = GHC.mkSrcSpan locStart locEnd
 
 insertForestLineInSrcSpan _ _ss = error $ "insertForestLineInSrcSpan: expecting a RealSrcSpan, got:" -- ++ (showGhc ss)
+
+-- ---------------------------------------------------------------------
+
+showSrcSpan :: GHC.SrcSpan -> String
+showSrcSpan sspan = show (getGhcLoc sspan, (r,c))
+  where
+    (r,c) = getGhcLocEnd sspan
+
+showSrcSpanF :: GHC.SrcSpan -> String
+showSrcSpanF sspan = show (((chs,trs,vs,ls),cs),((che,tre,ve,le),ce))
+  where
+    ((ForestLine chs trs vs ls,cs),(ForestLine che tre ve le,ce)) = ghcSrcSpanToForestSpan sspan
+    -- chsn = if chs then 1 else 0
+    -- chen = if che then 1 else 0
+
 
 
 -- EOF
