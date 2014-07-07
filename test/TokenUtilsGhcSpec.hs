@@ -41,16 +41,17 @@ spec = do
       -- (t,toks) <- parsedFileTokenTestGhc
       (t,toks) <- parsedFileGhc "./test/testdata/TokenTest.hs"
 
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
-      let decl@(GHC.L l _) = head decls
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
+      -- let decl@(GHC.L l _) = head decls
 
+      let l = ss2gs ((19,1),(21,14))
       let forest = mkTreeFromTokens toks
       let (tm',declToks) = getTokensFor True forest (gs2ss l)
 
-      (showGhc l) `shouldBe` "test/testdata/TokenTest.hs:(19,1)-(21,13)"
-      (showSrcSpan l) `shouldBe` "((19,1),(21,14))"
-      (showGhc decl) `shouldBe` "TokenTest.foo x y\n  = do { c <- System.IO.getChar;\n         GHC.Base.return c }"
+      -- (showGhc l) `shouldBe` "test/testdata/TokenTest.hs:(19,1)-(21,13)"
+      -- (showSrcSpan l) `shouldBe` "((19,1),(21,14))"
+      -- (showGhc decl) `shouldBe` "TokenTest.foo x y\n  = do { c <- System.IO.getChar;\n         GHC.Base.return c }"
       (showToks declToks) `shouldBe` "[((18,1),(18,19),((((18,1),(18,19)),ITlineComment \"-- leading comment\"),\"-- leading comment\")),((19,1),(19,1),((((19,1),(19,1)),ITsemi),\"\")),((19,1),(19,4),((((19,1),(19,4)),ITvarid \"foo\"),\"foo\")),((19,5),(19,6),((((19,5),(19,6)),ITvarid \"x\"),\"x\")),((19,7),(19,8),((((19,7),(19,8)),ITvarid \"y\"),\"y\")),((19,9),(19,10),((((19,9),(19,10)),ITequal),\"=\")),((20,3),(20,5),((((20,3),(20,5)),ITdo),\"do\")),((20,6),(20,6),((((20,6),(20,6)),ITvocurly),\"\")),((20,6),(20,7),((((20,6),(20,7)),ITvarid \"c\"),\"c\")),((20,8),(20,10),((((20,8),(20,10)),ITlarrow),\"<-\")),((20,11),(20,18),((((20,11),(20,18)),ITvarid \"getChar\"),\"getChar\")),((21,6),(21,6),((((21,6),(21,6)),ITsemi),\"\")),((21,6),(21,12),((((21,6),(21,12)),ITvarid \"return\"),\"return\")),((21,13),(21,14),((((21,13),(21,14)),ITvarid \"c\"),\"c\"))]"
 
       -- Note: Although the tokens include leading and following
@@ -61,27 +62,30 @@ spec = do
             "+- ((1,1),(15,17))\n|\n"++
             "`- ((19,1),(21,14))\n"
 
-{- ++AZ++ working through
     -- ---------------------------------
 
     it "gets the tokens for an added srcloc 1" $ do
-      (t,toks) <- parsedFileDupDefDd1
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
-      let decl@(GHC.L l _) = head $ drop 6 decls
+      -- (t,toks) <- parsedFileDupDefDd1
+      (t,toks) <- parsedFileGhc "./test/testdata/DupDef/Dd1.hs"
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
+      -- let decl@(GHC.L l _) = head $ drop 6 decls
+      let l = ss2gs ((4,1),(4,19))
 
       let forest = mkTreeFromTokens toks
       let (tm',declToks) = getTokensFor True forest (gs2ss l)
 
-      (showGhc l) `shouldBe` "test/testdata/DupDef/Dd1.hs:4:1-18"
-      (showSrcSpan l) `shouldBe` "((4,1),(4,19))"
-      (showGhc decl) `shouldBe` "DupDef.Dd1.toplevel x = DupDef.Dd1.c GHC.Num.* x"
+      -- (showGhc l) `shouldBe` "test/testdata/DupDef/Dd1.hs:4:1-18"
+      -- (showSrcSpan l) `shouldBe` "((4,1),(4,19))"
+      -- (showGhc decl) `shouldBe` "DupDef.Dd1.toplevel x = DupDef.Dd1.c GHC.Num.* x"
       (showToks declToks) `shouldBe` "[((4,1),(4,1),((((4,1),(4,1)),ITsemi),\"\")),((4,1),(4,9),((((4,1),(4,9)),ITvarid \"toplevel\"),\"toplevel\")),((4,10),(4,11),((((4,10),(4,11)),ITvarid \"x\"),\"x\")),((4,12),(4,13),((((4,12),(4,13)),ITequal),\"=\")),((4,14),(4,15),((((4,14),(4,15)),ITvarid \"c\"),\"c\")),((4,16),(4,17),((((4,16),(4,17)),ITstar),\"*\")),((4,18),(4,19),((((4,18),(4,19)),ITvarid \"x\"),\"x\"))]"
 
-      let (tm'',newSpan,decl') = addDeclToksAfterSrcSpan tm' l (PlaceOffset 2 0 2) declToks decl
-      (showGhc newSpan) `shouldBe` "foo:1048582:1-18"
+      -- let (tm'',newSpan,decl') = addDeclToksAfterSrcSpan tm' l (PlaceOffset 2 0 2) declToks decl
+      let (tm'',newSpan) = addToksAfterSrcSpan tm' (gs2ss l) (PlaceOffset 2 0 2) declToks
+      -- (showGhc newSpan) `shouldBe` "foo:1048582:1-18"
+      (show newSpan) `shouldBe` "((1048582,1),(1048582,19))"
 
-      (SYB.showData SYB.Renamer 0 decl') `shouldBe` "\n(L {foo:1048582:1-18} \n (FunBind \n  (L {test/testdata/DupDef/Dd1.hs:1048582:1-8} {Name: DupDef.Dd1.toplevel}) \n  (False) \n  (MatchGroup \n   [\n    (L {test/testdata/DupDef/Dd1.hs:1048582:1-18} \n     (Match \n      [\n       (L {test/testdata/DupDef/Dd1.hs:1048582:10} \n        (VarPat {Name: x}))] \n      (Nothing) \n      (GRHSs \n       [\n        (L {test/testdata/DupDef/Dd1.hs:4:14-18} \n         (GRHS \n          [] \n          (L {test/testdata/DupDef/Dd1.hs:1048582:14-18} \n           (OpApp \n            (L {test/testdata/DupDef/Dd1.hs:1048582:14} \n             (HsVar {Name: DupDef.Dd1.c})) \n            (L {test/testdata/DupDef/Dd1.hs:1048582:16} \n             (HsVar {Name: GHC.Num.*})) {Fixity: infixl 7} \n            (L {test/testdata/DupDef/Dd1.hs:1048582:18} \n             (HsVar {Name: x}))))))] \n       (EmptyLocalBinds))))] {!type placeholder here?!}) \n  (WpHole) {NameSet: \n  [{Name: DupDef.Dd1.c}]} \n  (Nothing)))"
+      -- (SYB.showData SYB.Renamer 0 decl') `shouldBe` "\n(L {foo:1048582:1-18} \n (FunBind \n  (L {test/testdata/DupDef/Dd1.hs:1048582:1-8} {Name: DupDef.Dd1.toplevel}) \n  (False) \n  (MatchGroup \n   [\n    (L {test/testdata/DupDef/Dd1.hs:1048582:1-18} \n     (Match \n      [\n       (L {test/testdata/DupDef/Dd1.hs:1048582:10} \n        (VarPat {Name: x}))] \n      (Nothing) \n      (GRHSs \n       [\n        (L {test/testdata/DupDef/Dd1.hs:4:14-18} \n         (GRHS \n          [] \n          (L {test/testdata/DupDef/Dd1.hs:1048582:14-18} \n           (OpApp \n            (L {test/testdata/DupDef/Dd1.hs:1048582:14} \n             (HsVar {Name: DupDef.Dd1.c})) \n            (L {test/testdata/DupDef/Dd1.hs:1048582:16} \n             (HsVar {Name: GHC.Num.*})) {Fixity: infixl 7} \n            (L {test/testdata/DupDef/Dd1.hs:1048582:18} \n             (HsVar {Name: x}))))))] \n       (EmptyLocalBinds))))] {!type placeholder here?!}) \n  (WpHole) {NameSet: \n  [{Name: DupDef.Dd1.c}]} \n  (Nothing)))"
 
       (drawTreeEntry tm'') `shouldBe`
             "((1,1),(32,18))\n|\n"++
@@ -93,12 +97,14 @@ spec = do
     -- ---------------------------------
 
     it "gets the tokens for an added srcloc with one line spacing" $ do
-      (t,toks) <- parsedFileDupDefDd1
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
+      -- (t,toks) <- parsedFileDupDefDd1
+      (t,toks) <- parsedFileGhc "./test/testdata/DupDef/Dd1.hs"
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
       let forest = mkTreeFromTokens toks
 
-      let decl@(GHC.L l _) = head $ drop 6 decls
+      -- let decl@(GHC.L l _) = head $ drop 6 decls
+      let l = ss2gs ((4,1),(4,19))
       let (tm',declToks) = getTokensFor True forest (gs2ss l)
       (drawTreeEntry tm') `shouldBe`
             "((1,1),(32,18))\n|\n"++
@@ -106,15 +112,16 @@ spec = do
             "+- ((4,1),(4,19))\n|\n"++
             "`- ((6,1),(32,18))\n"
 
-      (showGhc l) `shouldBe` "test/testdata/DupDef/Dd1.hs:4:1-18"
-      (showSrcSpan l) `shouldBe` "((4,1),(4,19))"
-      (showGhc decl) `shouldBe` "DupDef.Dd1.toplevel x = DupDef.Dd1.c GHC.Num.* x"
+      -- (showGhc l) `shouldBe` "test/testdata/DupDef/Dd1.hs:4:1-18"
+      -- (showSrcSpan l) `shouldBe` "((4,1),(4,19))"
+      -- (showGhc decl) `shouldBe` "DupDef.Dd1.toplevel x = DupDef.Dd1.c GHC.Num.* x"
       (showToks declToks) `shouldBe` "[((4,1),(4,1),((((4,1),(4,1)),ITsemi),\"\")),((4,1),(4,9),((((4,1),(4,9)),ITvarid \"toplevel\"),\"toplevel\")),((4,10),(4,11),((((4,10),(4,11)),ITvarid \"x\"),\"x\")),((4,12),(4,13),((((4,12),(4,13)),ITequal),\"=\")),((4,14),(4,15),((((4,14),(4,15)),ITvarid \"c\"),\"c\")),((4,16),(4,17),((((4,16),(4,17)),ITstar),\"*\")),((4,18),(4,19),((((4,18),(4,19)),ITvarid \"x\"),\"x\"))]"
 
-      let Just (GHC.L _ n) = locToName (4, 2) renamed
-      let typeSig = head $ definingSigsNames [n] renamed
-      let (GHC.L ln _) = typeSig
-      (showSrcSpan ln) `shouldBe` "((3,1),(3,31))"
+      -- let Just (GHC.L _ n) = locToName (4, 2) renamed
+      -- let typeSig = head $ definingSigsNames [n] renamed
+      -- let (GHC.L ln _) = typeSig
+      let ln = ss2gs ((3,1),(3,31))
+      -- (showSrcSpan ln) `shouldBe` "((3,1),(3,31))"
       let (tm'',sigToks) = getTokensFor True tm' (gs2ss ln)
       (drawTreeEntry tm'') `shouldBe`
             "((1,1),(32,18))\n|\n"++
@@ -124,10 +131,12 @@ spec = do
             "+- ((4,1),(4,19))\n|\n"++
             "`- ((6,1),(32,18))\n"
 
-      let (tm''',newSpan,typeSig') = addDeclToksAfterSrcSpan tm'' l (PlaceOffset 2 0 0) sigToks typeSig
-      (showGhc newSpan) `shouldBe` "foo:1048582:1-30"
+      -- let (tm''',newSpan,typeSig') = addDeclToksAfterSrcSpan tm'' l (PlaceOffset 2 0 0) sigToks typeSig
+      let (tm''',newSpan) = addToksAfterSrcSpan tm'' (gs2ss l) (PlaceOffset 2 0 0) sigToks 
+      -- (showGhc newSpan) `shouldBe` "foo:1048582:1-30"
+      (show newSpan) `shouldBe` "((1048582,1),(1048582,31))"
 
-      (SYB.showData SYB.Renamer 0 typeSig') `shouldBe` "\n(L {foo:1048582:1-30} \n (TypeSig \n  [\n   (L {test/testdata/DupDef/Dd1.hs:1048582:1-8} {Name: DupDef.Dd1.toplevel})] \n  (L {test/testdata/DupDef/Dd1.hs:1048582:13-30} \n   (HsFunTy \n    (L {test/testdata/DupDef/Dd1.hs:1048582:13-19} \n     (HsTyVar {Name: GHC.Integer.Type.Integer})) \n    (L {test/testdata/DupDef/Dd1.hs:1048582:24-30} \n     (HsTyVar {Name: GHC.Integer.Type.Integer}))))))"
+      -- (SYB.showData SYB.Renamer 0 typeSig') `shouldBe` "\n(L {foo:1048582:1-30} \n (TypeSig \n  [\n   (L {test/testdata/DupDef/Dd1.hs:1048582:1-8} {Name: DupDef.Dd1.toplevel})] \n  (L {test/testdata/DupDef/Dd1.hs:1048582:13-30} \n   (HsFunTy \n    (L {test/testdata/DupDef/Dd1.hs:1048582:13-19} \n     (HsTyVar {Name: GHC.Integer.Type.Integer})) \n    (L {test/testdata/DupDef/Dd1.hs:1048582:24-30} \n     (HsTyVar {Name: GHC.Integer.Type.Integer}))))))"
 
       (drawTreeEntry tm''') `shouldBe`
             "((1,1),(32,18))\n|\n"++
@@ -150,7 +159,8 @@ spec = do
       (show prevToks') `shouldBe` ""
       -}
       -- --- -- --
-      let (tm'''',_newSpan',_decl') = addDeclToksAfterSrcSpan tm''' newSpan (PlaceOffset 1 0 2) declToks decl
+      -- let (tm'''',_newSpan',_decl') = addDeclToksAfterSrcSpan tm''' newSpan (PlaceOffset 1 0 2) declToks decl
+      let (tm'''',_newSpan') = addToksAfterSrcSpan tm''' newSpan (PlaceOffset 1 0 2) declToks
       -- (showGhc newSpan') `shouldBe` "f:1000006:1-30"
 
       (drawTreeEntry tm'''') `shouldBe`
@@ -164,6 +174,7 @@ spec = do
             "`- ((6,1),(32,18))\n"
 
     -- ---------------------------------
+{- ++AZ++ working through
 
     it "gets the tokens for an added indented srcloc" $ do
       (t,toks) <- parsedFileDupDefDd1

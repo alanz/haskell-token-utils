@@ -20,6 +20,7 @@ module TestUtils
 
 import GHC.Paths ( libdir )
 import qualified DynFlags              as GHC
+import qualified FastString            as GHC
 import qualified GHC                   as GHC
 import qualified MonadUtils            as GHC
 
