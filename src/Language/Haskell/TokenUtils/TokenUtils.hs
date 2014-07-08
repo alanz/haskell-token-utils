@@ -91,6 +91,7 @@ module Language.Haskell.TokenUtils.TokenUtils
   -- * exported for historical tests only
   , initTokenCache
   , getTreeFromCache
+  , replaceTreeInCache
   , matchTokenPos
   ) where
 

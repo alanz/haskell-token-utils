@@ -3186,7 +3186,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       (take 320 $ SYB.showData SYB.Renamer 0 decl') `shouldBe` "\n(L {test/testdata/Renaming/LayoutIn2.hs:(8,14)-(12,42)} \n (HsCase \n  (L {test/testdata/Renaming/LayoutIn2.hs:8:19-22} \n   (HsVar {Name: list})) \n  (MatchGroup \n   [\n    (L {foo:8:32-42} \n     (Match \n      [\n       (L {test/testdata/Renaming/LayoutIn2.hs:8:32-37} \n        (ParPat \n         (L {test/testdata/Renaming/L"
 -}
     ------------------------------------
-{- ++AZ++ working through
+{- NOTE: This test mus remain/be moved back to HaRe.
 
     it "adds a negative offset to a decl and toks" $ do
       (t,toks) <- parsedFileLayoutIn2
@@ -3255,8 +3255,9 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       let decl2 = (GHC.L l (GHC.HsCase expr (GHC.MatchGroup (m1:m2:(tail $ tail matches)) typ)))
       (showGhc decl2) `shouldBe` "case list of {\n  (1 : xs) -> 1\n  (2 : xs)\n    | x GHC.Classes.< 10 -> 4\n    where\n        x = GHC.List.last xs\n  otherwise -> 12 }"
       (take 320 $ SYB.showData SYB.Renamer 0 decl2) `shouldBe` "\n(L {test/testdata/Renaming/LayoutIn2.hs:(8,14)-(12,42)} \n (HsCase \n  (L {test/testdata/Renaming/LayoutIn2.hs:8:19-22} \n   (HsVar {Name: list})) \n  (MatchGroup \n   [\n    (L {foo:8:26-36} \n     (Match \n      [\n       (L {test/testdata/Renaming/LayoutIn2.hs:8:26-31} \n        (ParPat \n         (L {test/testdata/Renaming/L"
-
+-}
   -- ---------------------------------------------
+
 
   describe "reSequenceToks" $ do
     it "Modifies a token stream to cater for changes in length of a token after e.g. renaming" $ do
@@ -3269,10 +3270,11 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       (t,toks) <- parsedFileGhc "./test/testdata/Demote/D1.hs"
       let tk = initTokenCache toks
 
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
-      let (GHC.L l _) = head decls
-      (showGhc l) `shouldBe` "test/testdata/Demote/D1.hs:11:1-7"
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
+      -- let (GHC.L l _) = head decls
+      -- (showGhc l) `shouldBe` "test/testdata/Demote/D1.hs:11:1-7"
+      let l = ss2gs ((11,1),(11,8))
       (showSrcSpan l) `shouldBe` "((11,1),(11,8))"
 
       let tk' = removeToksFromCache tk (gs2ss l)
@@ -3285,9 +3287,10 @@ addParamsToParentAndLiftedDecl: liftedDecls done
                "tree TId 1:\n"++
                "((100000011,1),(100000011,8))\n"
       let mainForest = (tkCache tk') Map.! mainTid
-      let sspan = posToSrcSpan mainForest ((11,1),(11,8))
+      -- let sspan = posToSrcSpan mainForest ((11,1),(11,8))
+      let sspan = ss2gs ((11,1),(11,8))
 
-      let tree1 = getTreeFromCache sspan tk'
+      let tree1 = getTreeFromCache (gs2ss sspan) tk'
       (drawTreeEntry tree1) `shouldBe`
              "((1,1),(13,25))\n|\n"++
                "+- ((1,1),(9,14))\n|\n"++
@@ -3295,13 +3298,14 @@ addParamsToParentAndLiftedDecl: liftedDecls done
                "`- ((13,1),(13,25))\n"
 
       let sspan2 = insertForestLineInSrcSpan (ForestLine False 1 0 1) sspan
-      (showGhc sspan2) `shouldBe` "f:(33554433,1)-(33554443,7)"
+      -- (showGhc sspan2) `shouldBe` "f:(33554433,1)-(33554443,7)"
+      (show $ gs2ss sspan2) `shouldBe` "((33554433,1),(33554443,8))"
       (showSrcSpanF sspan2) `shouldBe` "(((False,1,0,1),1),((False,1,0,11),8))"
 
       let tid = treeIdFromForestSpan $ gs2f sspan2
       (show tid) `shouldBe` "TId 1"
 
-      let tree2 = getTreeFromCache sspan2 tk'
+      let tree2 = getTreeFromCache (gs2ss sspan2) tk'
       (drawTreeEntry tree2) `shouldBe`
              "((100000011,1),(100000011,8))\n"
 
@@ -3313,10 +3317,11 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       (t,toks) <- parsedFileGhc "./test/testdata/Demote/D1.hs"
       let tk = initTokenCache toks
 
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
-      let (GHC.L l _) = head decls
-      (showGhc l) `shouldBe` "test/testdata/Demote/D1.hs:11:1-7"
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
+      -- let (GHC.L l _) = head decls
+      -- (showGhc l) `shouldBe` "test/testdata/Demote/D1.hs:11:1-7"
+      let l = ss2gs ((11,1),(11,8))
       (showSrcSpan l) `shouldBe` "((11,1),(11,8))"
 
       let tk' = removeToksFromCache tk (gs2ss l)
@@ -3329,21 +3334,22 @@ addParamsToParentAndLiftedDecl: liftedDecls done
                "tree TId 1:\n"++
                "((100000011,1),(100000011,8))\n"
       let mainForest = (tkCache tk') Map.! mainTid
-      let sspan = posToSrcSpan mainForest ((11,1),(11,8))
+      let sspan = ss2gs ((11,1),(11,8))
 
       let sspan2 = insertForestLineInSrcSpan (ForestLine False 1 0 1) sspan
-      (showGhc sspan2) `shouldBe` "f:(33554433,1)-(33554443,7)"
+      -- (showGhc sspan2) `shouldBe` "f:(33554433,1)-(33554443,7)"
+      (show $ gs2ss sspan2) `shouldBe` "((33554433,1),(33554443,8))"
       (showSrcSpanF sspan2) `shouldBe` "(((False,1,0,1),1),((False,1,0,11),8))"
 
       let tree1 = mkTreeFromTokens (take 10 toks)
-      let tk1 = replaceTreeInCache sspan tree1 tk'
+      let tk1 = replaceTreeInCache (gs2ss sspan) tree1 tk'
       (drawTokenCache tk1) `shouldBe`
              "tree TId 0:\n"++
              "((1,1),(6,17))\n"++
              "tree TId 1:\n"++
              "((100000011,1),(100000011,8))\n"
 
-      let tk2 = replaceTreeInCache sspan2 tree1 tk'
+      let tk2 = replaceTreeInCache (gs2ss sspan2) tree1 tk'
       (drawTokenCache tk2) `shouldBe`
                "tree TId 0:\n"++
                "((1,1),(13,25))\n|\n"++
@@ -3364,7 +3370,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       -- removeToksForPos ((15,1),(15,17))
       let pos = ((15,1),(15,17))
       let mainForest = (tkCache tk) Map.! mainTid
-      let sspan = posToSrcSpan mainForest pos
+      let sspan = ss2gs pos
       let tk' = removeToksFromCache tk (gs2ss sspan)
 
       (drawTokenCache tk') `shouldBe`
@@ -3383,12 +3389,13 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       -- putToksForSpan test/testdata/Demote/WhereIn4.hs:100000015:14-16:[((((0,1),(0,2)),ITvarid "p"),"p")]
 
       -- let sspan3 = posToSrcSpan mainForest ((100000015,14),(100000015,17))
-      let sspan3 = posToSrcSpan mainForest $
+      let sspan3 = ss2gs
                         (((forestLineToGhcLine $ ForestLine False 1 0 15),14),
                          ((forestLineToGhcLine $ ForestLine False 1 0 15),17) )
 
       -- (showGhc sspan3) `shouldBe` "f:100000015:14-16"
-      (showGhc sspan3) `shouldBe` "f:33554447:14-16"
+      -- (showGhc sspan3) `shouldBe` "f:33554447:14-16"
+      (show $ gs2ss sspan3) `shouldBe` "((33554447,14),(33554447,17))"
       (showSrcSpanF sspan3) `shouldBe` "(((False,1,0,15),14),((False,1,0,15),17))"
       let toks3 = [mkToken (GHC.ITvarid (GHC.mkFastString "p")) (0,1) "p"]
       (show toks3) `shouldBe` "[((((0,1),(0,2)),ITvarid \"p\"),\"p\")]"
@@ -3415,7 +3422,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       (show $ retrieveTokensInterim tree3) `shouldBe` "[((((15,1),(15,1)),ITsemi),\"\"),((((15,1),(15,3)),ITvarid \"sq\"),\"sq\"),((((15,4),(15,7)),ITvarid \"pow\"),\"pow\"),((((15,8),(15,9)),ITvarid \"z\"),\"z\"),((((15,10),(15,11)),ITequal),\"=\"),((((15,12),(15,13)),ITvarid \"z\"),\"z\"),((((15,13),(15,14)),ITvarsym \"^\"),\"^\"),((((15,14),(15,15)),ITvarid \"p\"),\"p\"),((((15,19),(15,39)),ITlineComment \"--there is a comment\"),\"--there is a comment\")]"
 
   -- ---------------------------------------------
-
+{- NOTE: should remain in HaRe tests
   describe "syncAstToLatestCache" $ do
     it "update the SrcSpans in a declaration to match the latest stash" $ do
       (t,toks) <- parsedFileGhc "./test/testdata/Demote/D1.hs"
@@ -3448,7 +3455,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       -- (showGhc ss') `shouldBe` "f:100000011:1-7"
       (showGhc ss') `shouldBe` "foo:33554443:1-7"
       (showSrcSpanF ss') `shouldBe` "(((False,1,0,11),1),((False,1,0,11),8))"
-
+-}
   -- ---------------------------------------------
 
   describe "formatAfterDelete" $ do
@@ -3461,66 +3468,14 @@ addParamsToParentAndLiftedDecl: liftedDecls done
 
       (renderLinesFromLayoutTree f1) `shouldBe` "module TokenTest where\n\n-- Test new style token manager\n\nbob a b = x\n  where x = 3\n\nbib a b = x\n  where\n    x = 3\n\n\nbab a b =\n  let bar = 3\n  in     b + bar -- ^trailing comment\n\n\n-- leading comment\nfoo x y =\n  do c <- getChar\n     return c\n\n\n\n\n"
 
-      let renamed = fromJust $ GHC.tm_renamed_source t
-      let decls = hsBinds renamed
-      let (GHC.L l _) = head $ drop 1 decls
-      (showGhc l) `shouldBe` "test/testdata/TokenTest.hs:(13,1)-(15,16)"
+      -- let renamed = fromJust $ GHC.tm_renamed_source t
+      -- let decls = hsBinds renamed
+      -- let (GHC.L l _) = head $ drop 1 decls
+      -- (showGhc l) `shouldBe` "test/testdata/TokenTest.hs:(13,1)-(15,16)"
+      let l = ss2gs ((13,1),(15,17))
       (showSrcSpan l) `shouldBe` "((13,1),(15,17))"
 
       let (f2,_) = removeSrcSpan f1 (gs2f l)
-
-{-
-      (drawTreeCompact f2) `shouldBe`
-            "0:((1,1),(26,1))\n"++
-            "1:((1,1),(1,7))\n"++
-            "1:((1,8),(1,17))\n"++
-            "1:((1,18),(1,23))\n"++
-            "1:((5,1),(6,14))\n"++
-            "2:((5,1),(5,4))\n"++
-            "2:((5,5),(6,14))\n"++
-            "3:((5,5),(5,6))\n"++
-            "3:((5,7),(5,8))\n"++
-            "3:((5,9),(5,10))\n"++
-            "3:((5,11),(5,12))\n"++
-            "3:((6,3),(6,8))\n"++
-            "3:((6,9),(6,14))(Above None (6,9) (6,14) FromAlignCol (2,-13))\n"++
-            "4:((6,9),(6,14))\n"++
-            "5:((6,9),(6,10))\n"++
-            "5:((6,11),(6,14))\n"++
-            "6:((6,11),(6,12))\n"++
-            "6:((6,13),(6,14))\n"++
-            "1:((8,1),(10,10))\n"++
-            "2:((8,1),(8,4))\n"++
-            "2:((8,5),(10,10))\n"++
-            "3:((8,5),(8,6))\n"++
-            "3:((8,7),(8,8))\n"++
-            "3:((8,9),(8,10))\n"++
-            "3:((8,11),(8,12))\n"++
-            "3:((9,3),(9,8))\n"++
-            "3:((10,5),(10,10))(Above FromAlignCol (1,-4) (10,5) (10,10) FromAlignCol (3,-9))\n"++
-            "4:((10,5),(10,10))\n"++
-            "5:((10,5),(10,6))\n"++
-            "5:((10,7),(10,10))\n"++
-            "6:((10,7),(10,8))\n"++
-            "6:((10,9),(10,10))\n"++
-            "1:((13,1),(15,17))(3,-16)D\n"++
-            "1:((19,1),(21,14))\n"++
-            "2:((19,1),(19,4))\n"++
-            "2:((19,5),(21,14))\n"++
-            "3:((19,5),(19,6))\n"++
-            "3:((19,7),(19,8))\n"++
-            "3:((19,9),(19,10))\n"++
-            "3:((20,3),(21,14))\n"++
-            "4:((20,3),(20,5))\n"++
-            "4:((20,6),(21,14))(Above None (20,6) (21,14) FromAlignCol (5,-13))\n"++
-            "5:((20,6),(20,18))\n"++
-            "6:((20,6),(20,7))\n"++
-            "6:((20,11),(20,18))\n"++
-            "5:((21,6),(21,14))\n"++
-            "6:((21,6),(21,12))\n"++
-            "6:((21,13),(21,14))\n"++
-            "1:((26,1),(26,1))\n"
--}
 
       -- let es = retrieveTokens' f2
       -- (show $ deleteGapsToks es) `shouldBe` ""
@@ -3626,11 +3581,11 @@ addParamsToParentAndLiftedDecl: liftedDecls done
 
   describe "calcEndGap" $ do
     it "Closes the gap when finding a Deleted Entry" $ do
-      (_t,toks) <- parsedFileLiftWhereIn1Ghc
+      (_t,toks) <- parsedFileGhc "./test/testdata/LiftToToplevel/WhereIn1.hs"
       let f1 = mkTreeFromTokens toks
 
       let pos = ((11,18),(12,32))
-      let sspan = posToSrcSpan f1 pos
+      let sspan = ss2gs pos
       let (f2,_t2) = removeSrcSpan f1 (gs2f sspan)
 
       (drawTreeEntry f2) `shouldBe`
@@ -3645,7 +3600,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
 
   describe "openZipperToSpan" $ do
     it "opens a zipper to a span, even if it has been added and is partly out of alignment" $ do
-      (t,toks) <- parsedFileLayoutLetExpr
+      (t,toks) <- parsedFileGhc "./test/testdata/Layout/LetExpr.hs"
 
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
@@ -3687,8 +3642,9 @@ addParamsToParentAndLiftedDecl: liftedDecls done
          "1:((9,1),(9,1))\n"
 
 
-      let sspan = posToSrcSpan layout ((6,11),(6,16))
-      (showGhc sspan) `shouldBe` "f:6:11-15"
+      let sspan = ss2gs ((6,11),(6,16))
+      -- (showGhc sspan) `shouldBe` "f:6:11-15"
+      (show $ gs2ss sspan) `shouldBe` "((6,11),(6,16))"
 
       newToks <- liftIO $ basicTokenise "\n               ff :: Int"
       (show newToks) `shouldBe` "[((((1,16),(1,18)),ITvarid \"ff\"),\"ff\"),((((1,19),(1,21)),ITdcolon),\"::\"),((((1,22),(1,25)),ITconid \"Int\"),\"Int\")]"
@@ -3696,7 +3652,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       let pos = (PlaceAbsCol 2 5 50)
       let (layout2,newSpan) = addToksAfterSrcSpan layout (gs2ss sspan) pos newToks
 
-      (showGhc $ ss2gs newSpan) `shouldBe` "foo:1048584:5-13"
+      -- (showGhc $ ss2gs newSpan) `shouldBe` "foo:1048584:5-13"
       (show $ ss2f newSpan) `shouldBe` "(((ForestLine False 0 1 8),5),((ForestLine False 0 1 8),14))"
       (drawTreeCompact layout2) `shouldBe`
          "0:((3,1),(9,1))\n"++
@@ -3774,7 +3730,6 @@ addParamsToParentAndLiftedDecl: liftedDecls done
       let z = openZipperToSpanAdded (((ForestLine False 0 1 8),5),((ForestLine False 0 1 8),7)) $ Z.fromTree layout2
       (show $ treeStartEnd (Z.tree z)) `shouldBe` "(((ForestLine False 0 1 8),5),((ForestLine False 0 1 8),14))"
 
-++AZ++ working through end -}
 -- ---------------------------------------------------------------------
 -- Helper functions
 
