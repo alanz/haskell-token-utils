@@ -17,6 +17,7 @@ module TestUtils
        , pwd
        , cd
        , bypassGHCBug7351
+       , mkTestGhcName
        ) where
 
 
@@ -26,8 +27,10 @@ import qualified FastString    as GHC
 import qualified GHC           as GHC
 import qualified GHC.Paths     as GHC
 import qualified Lexer         as GHC
+import qualified Name          as GHC
 import qualified SrcLoc        as GHC
 import qualified StringBuffer  as GHC
+import qualified Unique        as GHC
 
 import Control.Monad
 import Data.Algorithm.Diff
@@ -253,6 +256,16 @@ realSrcLocFromTok :: PosToken -> GHC.RealSrcLoc
 realSrcLocFromTok (GHC.L (GHC.RealSrcSpan srcspan) _,_) = GHC.realSrcSpanStart srcspan
 realSrcLocFromTok (GHC.L _ _,_) = GHC.mkRealSrcLoc (GHC.mkFastString "") 1 1
 
+
+-- ---------------------------------------------------------------------
+
+mkTestGhcName :: Int -> Maybe GHC.Module -> String -> GHC.Name
+mkTestGhcName u maybeMod name = n
+  where
+      un = GHC.mkUnique 'H' (u+1) -- H for HaRe :)
+      n = case maybeMod of
+               Nothing -> GHC.localiseName $ GHC.mkSystemName un (GHC.mkVarOcc name)
+               Just modu -> GHC.mkExternalName un modu (GHC.mkVarOcc name) nullSrcSpan
 
 -- EOF
 

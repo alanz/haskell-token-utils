@@ -26,6 +26,8 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , showSrcSpan
   , showSrcSpanF
 
+  , newNameTok
+
   -- * For testing
   , addEndOffsets
   ) where
@@ -36,8 +38,14 @@ import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
 import qualified GHC           as GHC
 import qualified Lexer         as GHC
+import qualified Name          as GHC
+import qualified NameSet       as GHC
 import qualified Outputable    as GHC
+import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
+import qualified UniqSet       as GHC
+import qualified Unique        as GHC
+import qualified Var           as GHC
 
 import Outputable
 
@@ -2313,6 +2321,31 @@ showSrcSpanF sspan = show (((chs,trs,vs,ls),cs),((che,tre,ve,le),ce))
     -- chsn = if chs then 1 else 0
     -- chen = if che then 1 else 0
 
+
+-- ---------------------------------------------------------------------
+
+
+-- | Create a new name token. If 'useQual' then use the qualified
+-- name, if it exists.
+-- The end position is not changed, so the eventual realignment can
+-- know what the difference in length in the token is
+newNameTok :: Bool -> GHC.SrcSpan -> GHC.Name -> GhcPosToken
+newNameTok useQual l newName =
+  ((GHC.L l' (GHC.ITvarid (GHC.mkFastString newNameStr))),newNameStr)
+  where
+   newNameStr = if useQual then (showGhc newName)
+                           else (GHC.occNameString $ GHC.getOccName newName)
+
+   l' =  case l of
+     GHC.RealSrcSpan ss ->
+       let
+         ((ForestLine _ _ _ startRow,startCol),_) = ghcSrcSpanToForestSpan l
+
+         locStart = GHC.mkSrcLoc (GHC.srcSpanFile ss) startRow startCol
+         locEnd   = GHC.mkSrcLoc (GHC.srcSpanFile ss) startRow (length newNameStr + startCol)
+       in
+         GHC.mkSrcSpan locStart locEnd
+     _ -> l
 
 
 -- EOF

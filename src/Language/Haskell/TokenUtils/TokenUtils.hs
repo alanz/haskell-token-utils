@@ -86,10 +86,12 @@ module Language.Haskell.TokenUtils.TokenUtils
   , calcEndGap
   , getTreeSpansAsList
   , openZipperToSpanOrig
+  , replaceTokNoReAlign
 
   -- * exported for historical tests only
   , initTokenCache
   , getTreeFromCache
+  , matchTokenPos
   ) where
 
 import Control.Exception
