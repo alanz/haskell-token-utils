@@ -3,11 +3,14 @@
 module Language.Haskell.TokenUtils.API
   (
   -- * Creating a `LayoutTree`
+  -- |This should only be required by impementors of token utils backends
     Allocatable(..)
   -- * Eliminating a `LayoutTree`
+  -- |This should only be required by impementors of token utils backends
   , renderLayoutTree
 
   -- * Properties required for a `LayoutTree`
+  -- |This should only be required by impementors of token utils backends
   , IsToken(..)
   , HasLoc(..)
   ) where
