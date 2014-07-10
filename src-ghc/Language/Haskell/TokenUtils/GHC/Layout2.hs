@@ -1,37 +1,36 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# Language MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 
 -- |
 --
 
-module Language.Haskell.TokenUtils.GHC.Layout (
+module Language.Haskell.TokenUtils.GHC.Layout2 (
   --   initTokenLayout
   -- , nullTokenLayout
   -- , ghcAllocTokens
   -- , retrieveTokens
   -- , getLoc
-    nullSrcSpan
-  , mkToken
+    -- nullSrcSpan
+  -- , mkToken
 
   -- * Span conversion functions
-  , gs2f,f2gs
-  , gs2ss,ss2gs
 
-  , insertForestLineInSrcSpan
-  , showSrcSpan
-  , showSrcSpanF
+  -- , insertForestLineInSrcSpan
+  -- , showSrcSpan
+  -- , showSrcSpanF
 
-  , newNameTok
-
-  , GhcPosToken
+  -- , newNameTok
 
   -- * For testing
-  , addEndOffsets
+  -- , addEndOffsets
+
+    allocTokensSrcSpans
   ) where
 
 import qualified Bag           as GHC
@@ -49,21 +48,22 @@ import qualified UniqSet       as GHC
 import qualified Unique        as GHC
 import qualified Var           as GHC
 
-import Outputable
+-- import Outputable
 
-import qualified GHC.SYB.Utils as SYB
 
 import Control.Exception
+import Data.Generics hiding (GT)
 import Data.List
+import Data.Monoid
 import Data.Tree
-
+import Data.Tree.DUAL
 import Language.Haskell.TokenUtils.DualTree
+import Language.Haskell.TokenUtils.GHC.Layout
 import Language.Haskell.TokenUtils.Layout
 import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
-
--- import qualified Data.Tree.Zipper as Z
+import qualified GHC.SYB.Utils as SYB
 
 
 -- ---------------------------------------------------------------------
@@ -165,146 +165,11 @@ AST Items for layout keywords.
 
 
 -- ---------------------------------------------------------------------
-{-
-deriving instance Show Label
-
-instance Outputable (Tree Entry) where
-  ppr (Node label subs) = hang (text "Node") 2 (vcat [ppr label,ppr subs])
-
-instance Outputable Entry where
-  ppr (Entry sspan lay toks) = text "Entry" <+> ppr sspan <+> ppr lay <+> text (show toks)
-  ppr (Deleted sspan pg eg)     = text "Deleted" <+> ppr sspan <+> ppr pg <+> ppr eg
-
-instance Outputable Layout where
-  ppr (Above so p1 p2 oe)   = text "Above" <+> ppr so <+> ppr p1 <+> ppr p2 <+> ppr oe
-  -- ppr (Offset r c)    = text "Offset" <+> ppr r <+> ppr c
-  ppr (NoChange)      = text "NoChange"
-  -- ppr (EndOffset r c) = text "EndOffset" <+> ppr r <+> ppr c
-
-instance Outputable PprOrigin where
-  ppr Original = text "Original"
-  ppr Added    = text "Added"
-
-instance Outputable Ppr where
-  ppr (PprText r c o str) = text "PprText" <+> ppr r <+> ppr c <+> ppr o
-                        <+> text "\"" <> text str <> text "\""
-  ppr (PprAbove so rc erc pps) = hang (text "PprAbove" <+> ppr so <+> ppr rc <+> ppr erc)
-                                           2 (ppr pps)
-  -- ppr (PprOffset ro co pps)       = hang (text "PprOffset" <+> ppr ro <+> ppr co)
-  --                                          2 (ppr pps)
-  ppr (PprDeleted ro co lb l la)     = text "PprDeleted" <+> ppr ro <+> ppr co
-                                           <+> ppr lb <+> ppr l <+> ppr la
-                                         --  <+> ppr n
-
-instance Outputable EndOffset where
-  ppr None               = text "None"
-  ppr (SameLine co)      = text "SameLine" <+> ppr co
-  ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
-
--- ---------------------------------------------------------------------
-
-deriving instance Show Label
-
-instance Outputable (Tree Entry) where
-  ppr (Node label subs) = hang (text "Node") 2 (vcat [ppr label,ppr subs])
-
-instance Outputable Entry where
-  ppr (Entry sspan lay toks) = text "Entry" <+> ppr sspan <+> ppr lay <+> text (show toks)
-  ppr (Deleted sspan pg eg)     = text "Deleted" <+> ppr sspan <+> ppr pg <+> ppr eg
-
-instance Outputable Layout where
-  ppr (Above so p1 p2 oe)   = text "Above" <+> ppr so <+> ppr p1 <+> ppr p2 <+> ppr oe
-  -- ppr (Offset r c)    = text "Offset" <+> ppr r <+> ppr c
-  ppr (NoChange)      = text "NoChange"
-  -- ppr (EndOffset r c) = text "EndOffset" <+> ppr r <+> ppr c
-
-instance Outputable PprOrigin where
-  ppr Original = text "Original"
-  ppr Added    = text "Added"
-
-instance Outputable Ppr where
-  ppr (PprText r c o str) = text "PprText" <+> ppr r <+> ppr c <+> ppr o
-                        <+> text "\"" <> text str <> text "\""
-  ppr (PprAbove so rc erc pps) = hang (text "PprAbove" <+> ppr so <+> ppr rc <+> ppr erc)
-                                           2 (ppr pps)
-  -- ppr (PprOffset ro co pps)       = hang (text "PprOffset" <+> ppr ro <+> ppr co)
-  --                                          2 (ppr pps)
-  ppr (PprDeleted ro co lb l la)     = text "PprDeleted" <+> ppr ro <+> ppr co
-                                           <+> ppr lb <+> ppr l <+> ppr la
-                                         --  <+> ppr n
-
-instance Outputable EndOffset where
-  ppr None               = text "None"
-  ppr (SameLine co)      = text "SameLine" <+> ppr co
-  ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
-
--}
-
--- ---------------------------------------------------------------------
-
-instance GHC.Outputable (Line GhcPosToken) where
-  ppr (Line r c o s f str) = GHC.parens $ GHC.text "Line" GHC.<+> GHC.ppr r
-                         GHC.<+> GHC.ppr c GHC.<+> GHC.ppr o
-                         GHC.<+> GHC.ppr s GHC.<+> GHC.ppr f
-                         GHC.<+> GHC.text ("\"" ++ (GHC.showRichTokenStream str) ++ "\"")
-                         -- GHC.<+> GHC.text (show str) -- ++AZ++ debug
-
-instance GHC.Outputable Source where
-  ppr SOriginal = GHC.text "SOriginal"
-  ppr SAdded    = GHC.text "SAdded"
-  ppr SWasAdded = GHC.text "SWasAdded"
-
-instance GHC.Outputable LineOpt where
-  ppr ONone  = GHC.text "ONone"
-  ppr OGroup = GHC.text "OGroup"
-
-instance GHC.Outputable (LayoutTree GhcPosToken) where
-  ppr (Node e sub) = GHC.hang (GHC.text "Node") 2
-                              (GHC.vcat [GHC.ppr e,GHC.ppr sub])
-
-
-instance GHC.Outputable (Entry GhcPosToken) where
-  ppr (Entry ffs l toks) = GHC.text "Entry" GHC.<+> GHC.ppr ffs
-                                            GHC.<+> GHC.ppr l
-                                            GHC.<+> GHC.text (show toks)
-  ppr (Deleted ffs ro pos) = GHC.text "Deleted" GHC.<+> GHC.ppr ffs
-                                           GHC.<+> GHC.ppr ro
-                                           GHC.<+> GHC.ppr pos
-
-instance GHC.Outputable ForestLine where
-  ppr (ForestLine lc sel v l) = GHC.parens $ GHC.text "ForestLine"
-                                       GHC.<+> GHC.ppr lc GHC.<+> GHC.int sel
-                                       GHC.<+> GHC.int v GHC.<+> GHC.int l
-
-instance GHC.Outputable Layout where
-  ppr (Above bo pos1 pos2 eo) = GHC.text "Above"
-                                GHC.<+> GHC.ppr bo
-                                GHC.<+> GHC.ppr pos1
-                                GHC.<+> GHC.ppr pos2
-                                GHC.<+> GHC.ppr eo
-  ppr NoChange = GHC.text "NoChange"
-
-instance GHC.Outputable GHC.Token where
-  ppr t = GHC.text (show t)
-
-instance GHC.Outputable EndOffset where
-  ppr None = GHC.text "None"
-  ppr (SameLine co) = GHC.text "SameLine"
-                                GHC.<+> GHC.ppr co
-  ppr (FromAlignCol pos) = GHC.text "FromAlignCol"
-                                GHC.<+> GHC.ppr pos
-
--- ---------------------------------------------------------------------
 
 -- |Construct the initial `LayoutTree' for use by 'initTokenCacheLayout'
 initTokenLayout :: GHC.ParsedSource -> [GhcPosToken] -> LayoutTree GhcPosToken
 initTokenLayout parsed toks = (allocTokens parsed toks)
 
-{-
-nullTokenLayout :: TokenLayout
--- nullTokenLayout = TL (Leaf nullSrcSpan NoChange [])
-nullTokenLayout = TL (Node (Entry (sf nullSrcSpan) NoChange []) [])
--}
 -- ---------------------------------------------------------------------
 
 -- TODO: bring in startEndLocIncComments'
@@ -344,7 +209,7 @@ ghcAllocTokens (GHC.L _l (GHC.HsModule maybeName maybeExports imports decls _war
 
 -- ---------------------------------------------------------------------
 
-type GhcPosToken = (GHC.Located GHC.Token, String)
+-- type GhcPosToken = (GHC.Located GHC.Token, String)
 
 -- ---------------------------------------------------------------------
 
@@ -2027,7 +1892,7 @@ ghcIsEmpty ((GHC.L _ _),               "") = True
 ghcIsEmpty _                               = False
 
 -- ---------------------------------------------------------------------
-
+{-
 -- |Compose a new token using the given arguments.
 mkToken::GHC.Token -> SimpPos -> String -> GhcPosToken
 mkToken t (row,col) c = ((GHC.L l t),c)
@@ -2037,7 +1902,7 @@ mkToken t (row,col) c = ((GHC.L l t),c)
 
 ghcZeroToken :: GhcPosToken
 ghcZeroToken = mkToken GHC.ITsemi (0,0) ""
-
+-}
 -- ---------------------------------------------------------------------
 
 nullSrcSpan :: GHC.SrcSpan
@@ -2059,10 +1924,12 @@ s2g ((sr,sc),(er,ec)) = sp
 
 
 -- ---------------------------------------------------------------------
-
+{-
 instance Allocatable GHC.ParsedSource GhcPosToken where
   allocTokens = ghcAllocTokens
+-}
 
+{-
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan
   -- putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
@@ -2071,7 +1938,7 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
 
   isComment = ghcIsComment
   isEmpty = ghcIsEmpty
-  mkZeroToken = ghcZeroToken
+  mkZeroToken = mkToken GHC.ITsemi (0,0) ""
   isDo = ghcIsDo
   isElse = ghcIsElse
   isIn = ghcIsIn
@@ -2104,16 +1971,17 @@ instance (HasLoc (GHC.Located GHC.Token, String)) where
   getLocEnd (lt,_) = getLocEnd lt
 
   putSpan (lt,s)  ns = (ghcPutSpan lt ns,s)
-
+-}
 
 -- showToks :: [PosToken] -> String
 showToks toks = show $ map (\(t@(GHC.L _ tok),s) ->
                  ((getLocatedStart t, getLocatedEnd t),tok,s)) toks
 
+{-
 instance Show (GHC.GenLocated GHC.SrcSpan GHC.Token) where
   show t@(GHC.L _l tok) = show ((getLocatedStart t, getLocatedEnd t),tok)
   -- show t@(GHC.L _l tok) = show ((getLocatedStart t),tok)
-
+-}
 -- ---------------------------------------------------------------------
 
 -- |Used as a marker in the filename part of the SrcSpan on modified
@@ -2215,24 +2083,6 @@ ghcTokenLen (_,s) = length s
 
 -- ---------------------------------------------------------------------
 
-gs2f :: GHC.SrcSpan -> ForestSpan
-gs2f = ghcSrcSpanToForestSpan
-
-f2gs :: ForestSpan -> GHC.SrcSpan
-f2gs = forestSpanToGhcSrcSpan
-
-gs2ss :: GHC.SrcSpan -> SimpSpan
-gs2ss ss = ((getGhcLoc ss),(getGhcLocEnd ss))
-
-ss2gs :: SimpSpan -> GHC.SrcSpan
-ss2gs ((sr,sc),(er,ec)) = GHC.mkSrcSpan locStart locEnd
-  where
-    fname = GHC.mkFastString "foo"
-    locStart = GHC.mkSrcLoc fname sr sc
-    locEnd   = GHC.mkSrcLoc fname er ec
-
--- ---------------------------------------------------------------------
-
 ghcSrcSpanToForestSpan :: GHC.SrcSpan -> ForestSpan
 ghcSrcSpanToForestSpan sspan = ((ghcLineToForestLine startRow,startCol),(ghcLineToForestLine endRow,endCol))
   where
@@ -2306,6 +2156,123 @@ newNameTok useQual l newName =
        in
          GHC.mkSrcSpan locStart locEnd
      _ -> l
+
+
+-- =====================================================================
+
+-- New approach - using Dual Tree, in two passes, first to pick up all
+-- the SrcSpans, then to insert the layout
+
+-- | The Dual Tree structure
+type SrcSpanTree = DUALTree TransG UpG AnnotG PrimG
+
+data AnnotG = AnnG String
+            deriving (Eq,Show)
+
+data UpG = UpG
+            deriving (Eq,Show)
+
+data TransG = TransG
+            deriving (Eq,Show)
+
+data PrimG = PrimG
+            deriving (Eq,Show)
+
+
+-- ---------------------------------------------------------------------
+
+allocSrcSpans :: GHC.ParsedSource -> SrcSpanTree
+allocSrcSpans = r
+  where
+    r = undefined
+
+-- ---------------------------------------------------------------------
+
+allocTokensSrcSpans :: Data a => a -> [LayoutTree GhcPosToken]
+allocTokensSrcSpans modu = r
+  where
+    start :: [LayoutTree (GhcPosToken)] -> [LayoutTree (GhcPosToken)]
+    start old = old
+
+    -- r = synthesize [] redf (start `mkQ` bb
+    -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
+    r = synthesizel [] redf (start `mkQ` bb
+                           ) modu
+
+    -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
+    bb :: GHC.SrcSpan -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
+
+    -- --------------
+
+    mergeSubs as bs = as ++ bs
+
+    redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    redf [] b = b
+    redf a [] = a
+
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
+      =
+        let
+          (as,ae) = treeStartEnd a
+          (bs,be) = treeStartEnd b
+          ss = combineSpans s1 s2
+          ret =
+           case (compare as bs,compare ae be) of
+             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
+
+             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
+
+             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
+
+             (_,_) -> if ae <= bs
+                        then [Node e [a,b]]
+                        else if be <= as
+                          then [Node e [b,a]]
+                          else -- fully nested case
+                            [Node e1 (sub1++[b])] -- should merge subs
+                        where
+                          e = Entry ss NoChange []
+          (Node (Entry _ _lr []) _) = head ret
+
+        in
+         {-
+         trace (show ((compare as bs,compare ae be),(fs $ treeStartEnd a,l1,length sub1)
+                                                   ,(fs $ treeStartEnd b,l2,length sub2)
+                                                   ,(fs $ treeStartEnd (head ret),lr)))
+         -}
+         ret
+
+    redf new  old = error $ "bar2.redf:" ++ show (new,old)
+
+-- ---------------------------------------------------------------------
+-- | Bottom-up synthesis of a data structure;
+--   1st argument z is the initial element for the synthesis;
+--   2nd argument o is for reduction of results from subterms;
+--   3rd argument f updates the synthesised data according to the given term
+--
+synthesizel :: s  -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
+synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
+
+-- ---------------------------------------------------------------------
+
+instance Monoid Layout where
+  mempty = NoChange
+
+  mappend NoChange NoChange = NoChange
+  mappend NoChange x = x
+  mappend x NoChange = x
+  mappend (Above bo1 ps1 pe1 eo1) (Above bo2 ps2 pe2 eo2)
+    = (Above bo ps pe eo)
+      where
+        (bo,ps) = if ps1 <= ps2 then (bo1,ps1)
+                                else (bo2,ps2)
+
+        (eo,pe) = if pe1 >= pe2 then (eo1,pe1)
+                                else (eo2,pe2)
+
 
 
 -- EOF
