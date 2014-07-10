@@ -14,3 +14,5 @@ install:
  - cabal update
  - cabal install happy
  - cabal install alex
+ - cabal install --only-dependencies --enable-tests
+
