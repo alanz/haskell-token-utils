@@ -69,6 +69,7 @@ module Language.Haskell.TokenUtils.Utils
   , srcPosToSimpPos
   , addOffsetToToks
 
+  , decorate
 
   -- * Spans
   -- , spanStartEnd
@@ -746,6 +747,41 @@ drawTokenCacheDetailed tk = Map.foldlWithKey' doOne "" (tkCache tk)
 -- |Add a constant line and column offset to a span of tokens
 addOffsetToToks :: (IsToken a) => SimpPos -> [a] -> [a]
 addOffsetToToks (r,c) toks = map (\t -> increaseSrcSpan (r,c) t) toks
+
+-- ---------------------------------------------------------------------
+
+-- Allocate all the tokens to the given tree
+decorate :: (IsToken a) => LayoutTree a -> [a] -> LayoutTree a
+decorate tree toks = go toks tree
+  where
+    go :: (IsToken a) => [a] -> LayoutTree a -> LayoutTree a
+    go ts (Node e subs) = r
+      where
+        -- b = map (\t -> let f = treeStartEnd t in (getLoc f, getLocEnd f)) subs
+
+        doOne :: (IsToken a) => ([a],[LayoutTree a]) -> LayoutTree a -> ([a],[LayoutTree a])
+        doOne (ts1,acc) tree1 = (ts1',acc')
+          where
+            ss = treeStartEnd tree1
+            (before,middle,after) = splitToksIncComments (getLoc ss,getLocEnd ss) ts1
+            ts1' = after
+            tree' = case tree1 of
+              Node (Entry ss1 lo []) [] -> [Node (Entry ss1 lo middle) []]
+              _ -> [go middle tree1]
+            acc' = acc ++ makeLeafFromToks before ++ tree'
+
+        (end,subs') = foldl' doOne (ts,[]) subs
+        -- (end,subs') = doOne (ts,[]) (head subs)
+        subs'' = subs' ++ makeLeafFromToks end
+        r = case makeLeafFromToks end of
+          []  -> Node e subs'
+          trs -> Node (Entry (ss,se) NoChange []) (subs'++trs)
+                where
+                  (ss,_) = treeStartEnd (ghead "decorate" subs')
+                  (_,se) = treeStartEnd (glast "decorate" trs)
+
+    -- go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
+
 
 -- ---------------------------------------------------------------------
 

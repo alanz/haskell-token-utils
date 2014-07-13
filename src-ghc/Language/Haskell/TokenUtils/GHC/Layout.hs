@@ -1,10 +1,11 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 {-# Language MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 
 -- |
 --
@@ -31,7 +32,6 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , GhcPosToken
 
   -- * For testing
-  , addEndOffsets
   ) where
 
 import qualified Bag           as GHC
@@ -49,12 +49,15 @@ import qualified UniqSet       as GHC
 import qualified Unique        as GHC
 import qualified Var           as GHC
 
-import Outputable
+-- import Outputable
 
 import qualified GHC.SYB.Utils as SYB
+import qualified Data.Generics as SYB
 
 import Control.Exception
+import Data.Generics hiding (GT)
 import Data.List
+import Data.Monoid
 import Data.Tree
 
 import Language.Haskell.TokenUtils.DualTree
@@ -65,6 +68,7 @@ import Language.Haskell.TokenUtils.Utils
 
 -- import qualified Data.Tree.Zipper as Z
 
+import Debug.Trace
 
 -- ---------------------------------------------------------------------
 
@@ -2061,7 +2065,8 @@ s2g ((sr,sc),(er,ec)) = sp
 -- ---------------------------------------------------------------------
 
 instance Allocatable GHC.ParsedSource GhcPosToken where
-  allocTokens = ghcAllocTokens
+  -- allocTokens = ghcAllocTokens
+  allocTokens = ghcAllocTokens'
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan
@@ -2307,5 +2312,183 @@ newNameTok useQual l newName =
          GHC.mkSrcSpan locStart locEnd
      _ -> l
 
+-- =====================================================================
+-- Trying approach used in HSE version
+
+-- ---------------------------------------------------------------------
+
+ghcAllocTokens' :: GHC.ParsedSource-> [GhcPosToken] -> LayoutTree GhcPosToken
+ghcAllocTokens' parsed toks = r
+  where
+    parsed' = sanitize parsed
+    ss = allocTokensSrcSpans parsed'
+    ss1 = (ghead "ghcAllocTokens" ss)
+    ss2 = addEndOffsets ss1 toks
+    ss3 = decorate ss2 toks
+
+    -- r = error $ "foo=" ++ show ss
+    -- r = error $ "foo=" ++ drawTreeCompact (head ss)
+    -- r = error $ "foo=" ++ drawTreeWithToks ss3
+    -- r = undefined
+    r = ss3
+
+-- ---------------------------------------------------------------------
+
+allocTokensSrcSpans :: Data a => a -> [LayoutTree GhcPosToken]
+allocTokensSrcSpans modu = r
+  where
+    start :: [LayoutTree (GhcPosToken)] -> [LayoutTree (GhcPosToken)]
+    start old = old
+
+    -- r = synthesize [] redf (start `mkQ` bb
+    -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
+    -- r = synthesizel [] redf (start `mkQ` bb
+    r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
+                           ) modu
+
+    -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
+    bb :: GHC.SrcSpan -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
+    bb ss vv = vv -- error $ "allocTokensSrcSpans:got weird ss:" ++ show ss
+
+    -- --------------
+
+    mergeSubs as bs = as ++ bs
+
+    redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    redf [] b = b
+    redf a [] = a
+
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
+      =
+        let
+          (as,ae) = treeStartEnd a
+          (bs,be) = treeStartEnd b
+          ss = combineSpans s1 s2
+          ret =
+           case (compare as bs,compare ae be) of
+             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
+
+             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
+
+             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
+
+             (_,_) -> if ae <= bs
+                        then [Node e [a,b]]
+                        else if be <= as
+                          then [Node e [b,a]]
+                          else -- fully nested case
+                            [Node e1 (sub1++[b])] -- should merge subs
+                        where
+                          e = Entry ss NoChange []
+          (Node (Entry _ _lr []) _) = head ret
+
+        in
+         {-
+         trace (show ((compare as bs,compare ae be),(f2ss $ treeStartEnd a,l1,length sub1)
+                                                   ,(f2ss $ treeStartEnd b,l2,length sub2)
+                                            --        , (as,ae,bs,be,ss)
+                                                   ))
+
+         -}
+         ret
+
+    redf new  old = error $ "bar2.redf:" ++ show (new,old)
+
+-- ---------------------------------------------------------------------
+-- | Bottom-up synthesis of a data structure;
+--   1st argument z is the initial element for the synthesis;
+--   2nd argument o is for reduction of results from subterms;
+--   3rd argument f updates the synthesised data according to the given term
+--
+synthesizel :: s  -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
+synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
+
+-- Staged version of synthesizel
+synthesizelStaged :: SYB.Stage -> t -> s -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
+synthesizelStaged stage zt z o f x
+  | checkItemStage stage x = zt
+  | otherwise = f x (foldl' o z (gmapQ ((synthesizelStaged stage zt) z o f) x))
+
+-- ---------------------------------------------------------------------
+
+-- | Checks whether the current item is undesirable for analysis in the current
+-- AST Stage.
+checkItemStage :: (Typeable a, Data a) => SYB.Stage -> a -> Bool
+checkItemStage stage x = (checkItemStage1 stage x)
+#if __GLASGOW_HASKELL__ > 704
+                      || (checkItemStage2 stage x)
+#endif
+
+-- Check the Typeable items
+checkItemStage1 :: (Typeable a) => SYB.Stage -> a -> Bool
+checkItemStage1 stage x = (const False `SYB.extQ` postTcType `SYB.extQ` fixity `SYB.extQ` nameSet) x
+  where nameSet     = const (stage `elem` [SYB.Parser,SYB.TypeChecker]) :: GHC.NameSet       -> Bool
+        postTcType  = const (stage < SYB.TypeChecker                  ) :: GHC.PostTcType    -> Bool
+        fixity      = const (stage < SYB.Renamer                      ) :: GHC.Fixity        -> Bool
+
+#if __GLASGOW_HASKELL__ > 704
+-- | Check the Typeable1 items
+checkItemStage2 :: Data a => SYB.Stage -> a -> Bool
+checkItemStage2 stage x = (const False `SYB.ext1Q` hsWithBndrs) x
+  where
+        hsWithBndrs = const (stage < SYB.Renamer) :: GHC.HsWithBndrs a -> Bool
+#endif
+
+-- ---------------------------------------------------------------------
+
+instance Monoid Layout where
+  mempty = NoChange
+
+  mappend NoChange NoChange = NoChange
+  mappend NoChange x = x
+  mappend x NoChange = x
+  mappend (Above bo1 ps1 pe1 eo1) (Above bo2 ps2 pe2 eo2)
+    = (Above bo ps pe eo)
+      where
+        (bo,ps) = if ps1 <= ps2 then (bo1,ps1)
+                                else (bo2,ps2)
+
+        (eo,pe) = if pe1 >= pe2 then (eo1,pe1)
+                                else (eo2,pe2)
+
+
+-- ---------------------------------------------------------------------
+-- |sanitize the GHC ParsedSource by purging it of undefineds
+-- These can occur in (at least one place)
+--   HsCmdTop - last field
+sanitize :: (Typeable a,Data a) => a -> a
+sanitize t = r
+  where
+    r = everywhereStaged SYB.Parser (SYB.mkT cmdTopR `SYB.extT` cmdTopN
+                                    `SYB.extT` parStmt
+                                    ) t
+
+    cmdTopN :: GHC.HsCmdTop GHC.Name -> GHC.HsCmdTop GHC.Name
+    cmdTopN (GHC.HsCmdTop cmd ts typ _) = (GHC.HsCmdTop cmd ts typ [])
+
+    cmdTopR :: GHC.HsCmdTop GHC.RdrName -> GHC.HsCmdTop GHC.RdrName
+    cmdTopR (GHC.HsCmdTop cmd ts typ _) = (GHC.HsCmdTop cmd ts typ [])
+
+    parStmt :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> GHC.ParStmtBlock GHC.RdrName GHC.RdrName
+    parStmt (GHC.ParStmtBlock stmts _ typ) = (GHC.ParStmtBlock stmts [] typ)
+
+-- ---------------------------------------------------------------------
+
+-- TODO: These are duplicates of those in HaRe, we need one only
+
+-- | Bottom-up transformation
+everywhereStaged ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Data a => a -> a
+everywhereStaged stage f x
+  | checkItemStage stage x = x
+  | otherwise = (f . gmapT (everywhereStaged stage f)) x
+
+-- | Top-down version of everywhereStaged
+everywhereStaged' ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Data a => a -> a
+everywhereStaged' stage f x
+  | checkItemStage stage x = x
+  | otherwise = (gmapT (everywhereStaged stage f) . f) x
 
 -- EOF

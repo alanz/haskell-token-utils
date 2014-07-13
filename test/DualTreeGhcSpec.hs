@@ -6,12 +6,15 @@ import           Test.Hspec
 
 import qualified GHC        as GHC
 
+import qualified GHC.SYB.Utils as SYB
+
+import Data.Maybe
+
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
--- import Language.Haskell.TokenUtils.Pretty
+import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
--- import Language.Haskell.TokenUtils.Utils
-
+import Language.Haskell.TokenUtils.Utils
 
 import TestUtils
 
@@ -37,7 +40,8 @@ spec = do
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
-      -- (invariant layout) `shouldBe` []
+      -- (drawTreeWithToks layout) `shouldBe` ""
+      (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
@@ -987,6 +991,9 @@ spec = do
 
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
+
+      -- (SYB.showData SYB.Parser 0 parsed) `shouldBe` ""
+
 
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
 

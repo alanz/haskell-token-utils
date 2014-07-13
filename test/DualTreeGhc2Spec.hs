@@ -8,10 +8,8 @@ import qualified GHC        as GHC
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
-import Language.Haskell.TokenUtils.GHC.Layout2
--- import Language.Haskell.TokenUtils.Pretty
+-- import Language.Haskell.TokenUtils.GHC.Layout
 import Language.Haskell.TokenUtils.Types
--- import Language.Haskell.TokenUtils.Utils
 
 
 import TestUtils
@@ -36,16 +34,16 @@ spec = do
       (GHC.showRichTokenStream toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\n module Layout.LetExpr where\n\n foo = let x = 1\n           y = 2\n       in x + y\n\n "
       let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
 
-      let layout = allocTokensSrcSpans parsed
+      let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
       -- (invariant layout) `shouldBe` []
 
 
       let srcTree = layoutTreeToSourceTree layout
-      -- (showGhc srcTree) `shouldBe` ""
-      -- (show $ retrieveLines srcTree) `shouldBe` ""
 
       (renderSourceTree srcTree) `shouldBe` origSource
+
+
 
     -- -----------------------------------------------------------------
 {-

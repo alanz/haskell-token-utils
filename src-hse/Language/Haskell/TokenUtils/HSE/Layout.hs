@@ -368,7 +368,7 @@ hseAllocTokens modu toks = r
 
 
 -- ---------------------------------------------------------------------
-
+{- moved to TokenUtils.Utils
 -- Allocate all the tokens to the given tree
 decorate :: LayoutTree (Loc TuToken) -> [Loc TuToken] -> LayoutTree (Loc TuToken)
 decorate tree toks = go toks tree
@@ -394,7 +394,7 @@ decorate tree toks = go toks tree
         subs'' = subs' ++ makeLeafFromToks end
 
     -- go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
-
+-}
 
 -- ---------------------------------------------------------------------
 {-
