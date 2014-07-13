@@ -2344,6 +2344,7 @@ allocTokensSrcSpans modu = r
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
     -- r = synthesizel [] redf (start `mkQ` bb
     r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
+                           `extQ` localBinds
                            ) modu
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
@@ -2353,8 +2354,44 @@ allocTokensSrcSpans modu = r
 
     -- --------------
 
+    localBinds :: GHC.HsLocalBinds GHC.RdrName -> [LayoutTree a] -> [LayoutTree a]
+    localBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) vv = r
+      where
+        bindList = GHC.bagToList binds
+
+        startBind = startPosForList bindList
+        startSig  = startPosForList sigs
+        start = if startSig < startBind then startSig else startBind
+
+        endBind = endPosForList bindList
+        endSig  = endPosForList sigs
+        end = if endSig > endBind then endSig else endBind
+
+        -- s1 will contain the 'where' token, split into prior comments,
+        -- the token, and post comments so that if the 'where' token must
+        -- be removed the comments will stay
+        (s1p,s1r) = break isWhereOrLet s1
+        (w,s1a)   = break (not.isWhereOrLet) s1r
+        whereLayout = makeLeafFromToks s1p ++ makeLeafFromToks w ++ makeLeafFromToks s1a
+
+        firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+        (ro,co) = case (filter isWhereOrLet s1) of
+                   [] -> (0,0)
+                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+
+        (rt,ct) = calcLastTokenPos toksBinds
+
+        r = undefined
+    localBinds _ vv = vv
+
+    -- --------------
+
     mergeSubs as bs = as ++ bs
 
+
+    -- TODO: redf exists identically in the HSE version, harvest commonality
     redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
     redf [] b = b
     redf a [] = a
