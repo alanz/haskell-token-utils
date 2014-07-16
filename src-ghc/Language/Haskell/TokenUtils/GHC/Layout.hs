@@ -66,7 +66,7 @@ import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 import Language.Haskell.TokenUtils.Utils
 
--- import qualified Data.Tree.Zipper as Z
+import qualified Data.Tree.Zipper as Z
 
 import Debug.Trace
 
@@ -2326,11 +2326,13 @@ ghcAllocTokens' parsed toks = r
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
 
+    ss4 = addLayout parsed ss3
+
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
-    -- r = error $ "foo=" ++ drawTreeWithToks ss3
+    r = error $ "foo=" ++ drawTreeWithToks ss4
     -- r = undefined
-    r = ss3
+    -- r = ss4
 
 -- ---------------------------------------------------------------------
 
@@ -2344,7 +2346,7 @@ allocTokensSrcSpans modu = r
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
     -- r = synthesizel [] redf (start `mkQ` bb
     r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
-                           `extQ` localBinds
+    --                        `extQ` localBinds
                            ) modu
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
@@ -2353,7 +2355,7 @@ allocTokensSrcSpans modu = r
     bb ss vv = vv -- error $ "allocTokensSrcSpans:got weird ss:" ++ show ss
 
     -- --------------
-
+{-
     localBinds :: GHC.HsLocalBinds GHC.RdrName -> [LayoutTree a] -> [LayoutTree a]
     localBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) vv = r
       where
@@ -2385,7 +2387,7 @@ allocTokensSrcSpans modu = r
 
         r = undefined
     localBinds _ vv = vv
-
+-}
     -- --------------
 
     mergeSubs as bs = as ++ bs
@@ -2514,7 +2516,8 @@ sanitize t = r
 
 -- ---------------------------------------------------------------------
 
--- TODO: These are duplicates of those in HaRe, we need one only
+-- TODO: These are duplicates of those in HaRe, we need one only,
+-- hopefully can move to ghc-syb-utils
 
 -- | Bottom-up transformation
 everywhereStaged ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Data a => a -> a
@@ -2527,5 +2530,54 @@ everywhereStaged' ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Dat
 everywhereStaged' stage f x
   | checkItemStage stage x = x
   | otherwise = (gmapT (everywhereStaged stage f) . f) x
+
+-- | Staged variation of SYB.everything
+-- The stage must be provided to avoid trying to modify elements which
+-- may not be present at all stages of AST processing.
+-- Note: Top-down order
+everythingStaged :: SYB.Stage -> (r -> r -> r) -> r -> SYB.GenericQ r -> SYB.GenericQ r
+everythingStaged stage k z f x
+  | checkItemStage stage x = z
+  | otherwise = foldl k (f x) (gmapQ (everythingStaged stage k z f) x)
+
+-- ---------------------------------------------------------------------
+
+-- |Traverse the parsed source looking for points requiring layout,
+-- and insert them into the LayoutTree at the appropriate point
+addLayout :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
+addLayout parsed tree = r
+  where
+    ztree = Z.fromTree tree
+
+    [r] = everythingStaged SYB.Parser combine [tree] ([] `SYB.mkQ` lgrhs
+                                    `SYB.extQ` lmatch
+                                    ) parsed
+
+    combine :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    combine [] rs = rs
+    combine ls [] = ls
+    combine [l] [rt] = trace ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt)) [rt]
+    combine ls rs = trace ("addLayout.combine2:" ++ show (ls,rs)) []
+
+    lgrhs :: GHC.Located (GHC.GRHSs GHC.RdrName) -> [LayoutTree GhcPosToken]
+    -- lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))) = tt
+    lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds binds))) = tt
+      where
+        z = openZipperToSpan (gs2f l) ztree
+
+        tt = trace ("lgrhs:z=" ++ show (Z.label z)) undefined
+    lgrhs _ = []
+
+    lmatch :: GHC.LMatch GHC.RdrName -> [LayoutTree GhcPosToken]
+    -- lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))) = tt
+    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds binds)) )) = tt
+      where
+        z = openZipperToSpan (gs2f l) ztree
+
+        -- Need to get tokens, look for the where, and identify how it
+        -- fits in
+
+        tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+    lmatch _ = []
 
 -- EOF
