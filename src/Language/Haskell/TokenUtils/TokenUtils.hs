@@ -24,6 +24,7 @@ module Language.Haskell.TokenUtils.TokenUtils
 
 
   -- * Operations at 'LayoutTree' level
+  , updateTokensForSrcSpan
   , replaceTokenForSrcSpan
   , getSrcSpanFor
   , indentDeclToks
@@ -72,7 +73,6 @@ module Language.Haskell.TokenUtils.TokenUtils
   , insertSrcSpan
   , insertLenChangedInSrcSpan
   , insertVersionsInSrcSpan
-  , updateTokensForSrcSpan
   , removeSrcSpan
   , containsStart
   , containsMiddle
