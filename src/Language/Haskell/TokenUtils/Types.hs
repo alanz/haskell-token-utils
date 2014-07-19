@@ -185,6 +185,9 @@ class (Show a,HasLoc a) => IsToken a where
   -- TODO: may be able to get rid of next due to former
   showTokenStream :: [a] -> String
 
+  -- |Create a stream of tokens from source
+  lexStringToTokens :: SimpSpan -> String -> [a]
+
   -- |Mark a token so that it can be use to trigger layout checking
   -- later when the toks are retrieved
   markToken :: a -> a

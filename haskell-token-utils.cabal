@@ -102,6 +102,7 @@ test-suite spec
 
     -- For testing the haskell-src-exts one
     , haskell-src-exts >= 1.15
+    , uniplate
 
 source-repository head
   type:     git

@@ -39,12 +39,14 @@ import qualified DynFlags      as GHC
 import qualified FastString    as GHC
 import qualified ForeignCall   as GHC
 import qualified GHC           as GHC
+import qualified GHC.Paths     as GHC
 import qualified Lexer         as GHC
 import qualified Name          as GHC
 import qualified NameSet       as GHC
 import qualified Outputable    as GHC
 import qualified RdrName       as GHC
 import qualified SrcLoc        as GHC
+import qualified StringBuffer  as GHC
 import qualified UniqSet       as GHC
 import qualified Unique        as GHC
 import qualified Var           as GHC
@@ -59,6 +61,8 @@ import Data.Generics hiding (GT)
 import Data.List
 import Data.Monoid
 import Data.Tree
+
+import System.IO.Unsafe
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
@@ -2088,6 +2092,8 @@ instance (IsToken (GHC.Located GHC.Token, String)) where
   tokenToString (_,s) = s
   showTokenStream = GHC.showRichTokenStream
 
+  lexStringToTokens = ghcLexStringToTokens
+
   markToken = ghcMarkToken
   isMarked  = ghcIsMarked
 
@@ -2577,7 +2583,45 @@ addLayout parsed tree = r
         -- Need to get tokens, look for the where, and identify how it
         -- fits in
 
-        tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+        -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+        -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
+        tt = trace ("lmatch:z=" ++ drawTreeWithToks (Z.tree z)) undefined
     lmatch _ = []
+
+-- ---------------------------------------------------------------------
+
+ghcLexStringToTokens :: SimpSpan -> String -> [GhcPosToken]
+ghcLexStringToTokens startLoc str = r
+  where
+    rsl = case ss2gs startLoc of
+            GHC.RealSrcSpan x -> GHC.realSrcSpanStart x
+            _ -> undefined
+    r = unsafePerformIO $ lexStringToRichTokens rsl str
+
+-- ---------------------------------------------------------------------
+
+
+lexStringToRichTokens :: GHC.RealSrcLoc -> String -> IO [GhcPosToken]
+lexStringToRichTokens startLoc str = do
+#if __GLASGOW_HASKELL__ > 704
+  GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $ do
+#else
+  GHC.defaultErrorHandler GHC.defaultLogAction $ do
+#endif
+    GHC.runGhc (Just GHC.libdir) $ do
+      dflags <- GHC.getSessionDynFlags
+      let dflags' = foldl GHC.xopt_set dflags
+                    [GHC.Opt_Cpp, GHC.Opt_ImplicitPrelude, GHC.Opt_MagicHash]
+      _ <- GHC.setSessionDynFlags dflags'
+
+      let res = GHC.lexTokenStream (GHC.stringToStringBuffer str) startLoc dflags'
+      case res of
+        GHC.POk _ toks -> return $ GHC.addSourceToTokens startLoc (GHC.stringToStringBuffer str) toks 
+        GHC.PFailed _srcSpan _msg -> error $ "lexStringToRichTokens:" -- ++ (show $ GHC.ppr msg)
+
+
+
+
+-- ---------------------------------------------------------------------
 
 -- EOF

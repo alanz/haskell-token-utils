@@ -1,6 +1,9 @@
+{-# LANGUAGE ViewPatterns #-}
 module TokenUtilsSrcExtsSpec (main, spec) where
 
 import           Test.Hspec
+
+import Control.Monad
 
 import Language.Haskell.TokenUtils.DualTree
 import Language.Haskell.TokenUtils.Layout
@@ -13,8 +16,33 @@ import Language.Haskell.TokenUtils.HSE.Layout
 import Language.Haskell.Exts.Annotated
 import Language.Haskell.Exts.Pretty
 import Language.Haskell.Exts.SrcLoc
+import System.Environment
+import Data.Generics.Uniplate.Data
 
 import TestUtils
+
+import qualified Data.Map as Map
+
+-- ---------------------------------------------------------------------
+-- look for @maybe x id@
+match :: Exp SrcSpanInfo -> Maybe (Exp SrcSpanInfo)
+match (App _ (App _ (prettyPrint -> "maybe") x) (prettyPrint -> "id")) = Just x
+match _ = Nothing
+
+-- App l (Exp l) (Exp l)
+
+fromSrcSpanInfo :: SrcSpanInfo -> SimpSpan
+fromSrcSpanInfo (SrcSpanInfo ss _) = ss2s ss
+
+whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
+whenJust (Just v) act = act v
+whenJust Nothing act = return ()
+
+an :: SrcSpanInfo
+an = toSrcInfo nullSrcLoc [] nullSrcLoc
+
+nullSrcLoc :: SrcLoc
+nullSrcLoc = SrcLoc "" 0 0
 
 -- ---------------------------------------------------------------------
 
@@ -24,6 +52,50 @@ main = do
 
 spec :: Spec
 spec = do
+
+  -- ---------------------------------------------
+
+  describe "testHlintStuff" $ do
+    it "proof of concept" $ do
+
+
+      -- Do the
+      --  maybe x id ==> fromMaybe x
+      -- hint
+
+      -- maybe     :: b -> (a -> b) -> Maybe a -> b
+      -- fromMaybe :: a ->             Maybe a -> a
+
+
+        ParseOk (modu,toks) <- loadFile "./test/testdata/Hlint/Input1.hs"
+        let layoutTree = allocTokens modu toks
+            tk = initTokenCacheLayout layoutTree
+        forM_ (universeBi modu) $ \o -> whenJust (match o) $ \e -> do
+            putStrLn "\n----------\n"
+            putStrLn $ drawTreeWithToks $ layoutTree
+            putStrLn "\n----------\n"
+            print $ ann o
+            putStrLn "\n----------\n"
+            print $ prettyPrint o
+            putStrLn "\n----------\n"
+            print $ show o
+            putStrLn "\n----------\n"
+            print $ prettyPrint e
+            putStrLn "\n----------\n"
+            -- putStrLn $ renderSourceTree $ layoutTreeToSourceTree $
+            let (_,oToks) = getTokensFromCache False tk (fromSrcSpanInfo $ ann o)
+            let (_,eToks) = getTokensFromCache False tk (fromSrcSpanInfo $ ann e)
+            let (tk2,ss2) = putToksInCache tk (fromSrcSpanInfo $ ann o) eToks
+                layoutTree2 = (tkCache tk2) Map.! mainTid
+            putStrLn $ drawTreeWithToks $ layoutTree2
+            -- putStrLn $ drawTreeWithToks $
+            --     replaceTokenForSrcSpan layoutTree (fromSrcSpanInfo $ ann o) (undefined e)
+            -- putStrLn $ prettyPrint $ App an (Var an $ UnQual an $ Ident an "fromMaybe") e
+
+            putStrLn "\n----------\n"
+            putStrLn $ renderLayoutTree layoutTree2
+            putStrLn "\n----------\n"
+
 
   -- ---------------------------------------------
 

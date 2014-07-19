@@ -124,6 +124,7 @@ instance IsToken (Loc TuToken) where
 
   tokenToString   = hseTokenToString
   showTokenStream = hseShowTokenStream
+  lexTokenStream = hseLexTokenStream
 
   markToken = assert False undefined
   isMarked  = assert False undefined
@@ -189,6 +190,13 @@ hseShowTokenStream ts2 = (go startLoc ts2 "") ++ "\n"
                   where tokEnd = (er,ec)
                         str = tokenToString tok
 
+-- ---------------------------------------------------------------------
+
+hseLexTokenStream :: SimpSpan -> String -> [Loc TuToken]
+hseLexTokenStream startLoc str = r
+  where
+    lexTokenStream :: String -> ParseResult [Loc Token]
+    r = undefined
 
 -- ---------------------------------------------------------------------
 
