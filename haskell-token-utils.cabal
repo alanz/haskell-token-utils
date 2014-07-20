@@ -1,5 +1,5 @@
 name:                haskell-token-utils
-version:             0.0.0.3
+version:             0.0.0.4
 synopsis:            Utilities to tie up tokens to an AST
 description:         This library is currently experimental.
                      .
@@ -56,6 +56,7 @@ library
                      , ghc
                      , ghc-syb-utils
                      , syb
+                     , ghc-paths
 
                      -- for HSE, until split out
                      , haskell-src-exts

@@ -2069,8 +2069,8 @@ s2g ((sr,sc),(er,ec)) = sp
 -- ---------------------------------------------------------------------
 
 instance Allocatable GHC.ParsedSource GhcPosToken where
-  -- allocTokens = ghcAllocTokens
-  allocTokens = ghcAllocTokens'
+  allocTokens = ghcAllocTokens
+  -- allocTokens = ghcAllocTokens'
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan

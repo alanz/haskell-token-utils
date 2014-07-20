@@ -85,7 +85,12 @@ spec = do
             -- putStrLn $ renderSourceTree $ layoutTreeToSourceTree $
             let (_,oToks) = getTokensFromCache False tk (fromSrcSpanInfo $ ann o)
             let (_,eToks) = getTokensFromCache False tk (fromSrcSpanInfo $ ann e)
-            let (tk2,ss2) = putToksInCache tk (fromSrcSpanInfo $ ann o) eToks
+            -- let newTok = basicTokenise "fromMaybe" :: [Loc TuToken]
+            let pos = getSpan $ ghead "blah" oToks
+            let fromMaybeTok = tokenise pos 0 False "fromMaybe" :: [Loc TuToken]
+            let eToks' = reIndentToks PlaceAdjacent fromMaybeTok eToks
+            let newToks = fromMaybeTok ++ eToks'
+            let (tk2,_ss2) = putToksInCache tk (fromSrcSpanInfo $ ann o) newToks
                 layoutTree2 = (tkCache tk2) Map.! mainTid
             putStrLn $ drawTreeWithToks $ layoutTree2
             -- putStrLn $ drawTreeWithToks $
@@ -96,6 +101,18 @@ spec = do
             putStrLn $ renderLayoutTree layoutTree2
             putStrLn "\n----------\n"
 
+
+  -- -------------------------------------------------------------------
+
+  describe "lexStringToTokens" $ do
+    it "parses a string to Haskell tokens" $ do
+      -- let startLoc = (GHC.mkRealSrcLoc (GHC.mkFastString "foo") 3 4)
+      let startLoc = ((3,4),(3,4))
+      let toks = lexStringToTokens (startLoc) "toplevel x y z" :: [Loc TuToken]
+      (showToks toks) `shouldBe` "[((3,4),(3,12),\"toplevel\"),"++
+                                  "((3,13),(3,14),\"x\"),"++
+                                  "((3,15),(3,16),\"y\"),"++
+                                  "((3,17),(3,18),\"z\")]"
 
   -- ---------------------------------------------
 

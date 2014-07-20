@@ -33,6 +33,11 @@ module Language.Haskell.TokenUtils.TokenUtils
   , addOffsetToSpan
   , reIndentToks
 
+
+  -- * Working with tokens
+  , basicTokenise
+  , tokenise
+
   -- *
   , invariant
   , reverseToks
@@ -411,7 +416,7 @@ prettyToks toks = showToks [ghead "prettyToks" toks] ++ ".." ++ showToks [last t
 showToks :: (IsToken a) => [a] -> String
 showToks toks = show $ map doOne toks
   where
-    doOne tok = (s,e,tok)
+    doOne tok = (s,e,tokenToString tok)
       where (s,e) = getSpan tok
 
 -- ---------------------------------------------------------------------
@@ -819,16 +824,12 @@ retrievePrevLineToks z = RT res' -- error $ "retrievePrevLineToks:done notWhite=
       | otherwise = [toks]
       where
         toks = concat $ reverse $ map retrieveTokensInterim $ Z.before zz
-        -- toks = concat $ map retrieveTokensInterim $ Z.before zz
 
 
 -- ---------------------------------------------------------------------
-{-
-posToSpan ::  (SimpPos,SimpPos) -> Span
-posToSpan (s,e) = Span s e
--}
--- ---------------------------------------------------------------------
 
+-- |Place the new tokens so that they are positioned correctly
+-- relative to the previous tokens
 reIndentToks :: (IsToken a) => Positioning -> [a] -> [a] -> [a]
 reIndentToks _ _ [] = []
 reIndentToks pos prevToks toks = toks''
@@ -1689,6 +1690,41 @@ newLinesToken jump tok = tok'
    ((sl,_),_) = getSpan tok
    nl = sl + jump
    tok' = putSpan mkZeroToken ((nl,1),(nl,1))
+
+-- ---------------------------------------------------------------------
+
+-- | Convert a string into a set of Haskell tokens, following the
+-- given position, with each line indented by a given column offset if
+-- required
+-- TODO: replace 'colOffset withFirstLineIndent' with a Maybe Int ++AZ++
+tokenise :: (IsToken a) => SimpSpan -> Int -> Bool -> String -> [a]
+tokenise  _ _ _ [] = []
+tokenise  startPos colOffset withFirstLineIndent str
+  = let str' = case lines str of
+                    (ln:[]) -> addIndent ln ++ if glast "tokenise" str=='\n' then "\n" else ""
+                    (ln:lns)-> addIndent ln ++ "\n" ++ concatMap (\n->replicate colOffset ' '++n++"\n") lns
+                    []      -> []
+        str'' = if glast "tokenise" str' == '\n' && glast "tokenise" str /= '\n'
+                  then genericTake (length str' -1) str'
+                  else str'
+        toks = lexStringToTokens startPos str''
+
+    in toks
+    -- in error $ "tokenise:" ++ (showToks $ head toks)
+   where
+     addIndent ln = if withFirstLineIndent
+                      then replicate colOffset ' '++ ln
+                      else ln
+
+-- ---------------------------------------------------------------------
+
+-- |Convert a string into a set of Haskell tokens. It has default
+-- position and offset, since it will be stitched into place in TokenUtils
+basicTokenise :: (IsToken a) => String -> [a]
+basicTokenise str = tokenise startPos 0 False str
+  where
+    -- startPos = (GHC.mkRealSrcLoc tokenFileMark 0 1)
+    startPos = ((0,1),(0,1))
 
 -- ---------------------------------------------------------------------
 

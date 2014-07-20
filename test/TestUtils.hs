@@ -8,8 +8,6 @@ module TestUtils
        , testCradle
        , catchException
        , mkHseSrcSpan
-       , basicTokenise
-       , tokenise
        , realSrcLocFromTok
        , hex
        , unspace
@@ -191,42 +189,6 @@ mkHseSrcSpan :: SimpPos -> SimpPos -> HSE.SrcSpan
 mkHseSrcSpan (sr,sc) (er,ec) = (HSE.mkSrcSpan (HSE.SrcLoc "filename" sr sc) (HSE.SrcLoc "filename" er ec))
 
 -- ---------------------------------------------------------------------
-
--- |Convert a string into a set of Haskell tokens. It has default
--- position and offset, since it will be stitched into place in TokenUtils
-basicTokenise :: String -> IO [PosToken]
-basicTokenise str = tokenise startPos 0 False str
-  where
-    -- startPos = (GHC.mkRealSrcLoc tokenFileMark 0 1)
-    startPos = (GHC.mkRealSrcLoc (GHC.mkFastString "foo") 0 1)
-
--- ---------------------------------------------------------------------
-
--- | Convert a string into a set of Haskell tokens, following the
--- given position, with each line indented by a given column offset if
--- required
--- TODO: replace 'colOffset withFirstLineIndent' with a Maybe Int ++AZ++
-tokenise :: GHC.RealSrcLoc -> Int -> Bool -> String -> IO [PosToken]
-tokenise  _ _ _ [] = return []
-tokenise  startPos colOffset withFirstLineIndent str
-  = let str' = case lines str of
-                    (ln:[]) -> addIndent ln ++ if glast "tokenise" str=='\n' then "\n" else ""
-                    (ln:lns)-> addIndent ln ++ "\n" ++ concatMap (\n->replicate colOffset ' '++n++"\n") lns
-                    []      -> []
-        str'' = if glast "tokenise" str' == '\n' && glast "tokenise" str /= '\n'
-                  then genericTake (length str' -1) str'
-                  else str'
-        toks = lexStringToRichTokens startPos str''
-
-    in toks
-    -- in error $ "tokenise:" ++ (showToks $ head toks)
-   where
-     addIndent ln = if withFirstLineIndent
-                      then replicate colOffset ' '++ ln
-                      else ln
-
--- ---------------------------------------------------------------------
-
 
 lexStringToRichTokens :: GHC.RealSrcLoc -> String -> IO [PosToken]
 lexStringToRichTokens startLoc str = do

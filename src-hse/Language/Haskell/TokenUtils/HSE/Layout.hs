@@ -124,7 +124,7 @@ instance IsToken (Loc TuToken) where
 
   tokenToString   = hseTokenToString
   showTokenStream = hseShowTokenStream
-  lexTokenStream = hseLexTokenStream
+  lexStringToTokens = hseLexStringToTokens
 
   markToken = assert False undefined
   isMarked  = assert False undefined
@@ -192,11 +192,17 @@ hseShowTokenStream ts2 = (go startLoc ts2 "") ++ "\n"
 
 -- ---------------------------------------------------------------------
 
-hseLexTokenStream :: SimpSpan -> String -> [Loc TuToken]
-hseLexTokenStream startLoc str = r
+hseLexStringToTokens :: SimpSpan -> String -> [Loc TuToken]
+hseLexStringToTokens startLoc str = r
   where
-    lexTokenStream :: String -> ParseResult [Loc Token]
-    r = undefined
+    -- lexTokenStream :: String -> ParseResult [Loc Token]
+    mtoks = lexTokenStream str
+    r = case mtoks of
+          ParseOk toks -> addOffsetToToks offset $ mergeToksAndComments toks []
+             where
+               ((sr,sc),_) = startLoc
+               offset = (sr - 1, sc - 1)
+          ParseFailed _l _s -> []
 
 -- ---------------------------------------------------------------------
 
