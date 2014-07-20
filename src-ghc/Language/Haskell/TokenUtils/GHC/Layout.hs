@@ -2508,7 +2508,9 @@ sanitize :: (Typeable a,Data a) => a -> a
 sanitize t = r
   where
     r = everywhereStaged SYB.Parser (SYB.mkT cmdTopR `SYB.extT` cmdTopN
+#if __GLASGOW_HASKELL__ > 704
                                     `SYB.extT` parStmt
+#endif
                                     ) t
 
     cmdTopN :: GHC.HsCmdTop GHC.Name -> GHC.HsCmdTop GHC.Name
@@ -2517,8 +2519,10 @@ sanitize t = r
     cmdTopR :: GHC.HsCmdTop GHC.RdrName -> GHC.HsCmdTop GHC.RdrName
     cmdTopR (GHC.HsCmdTop cmd ts typ _) = (GHC.HsCmdTop cmd ts typ [])
 
+#if __GLASGOW_HASKELL__ > 704
     parStmt :: GHC.ParStmtBlock GHC.RdrName GHC.RdrName -> GHC.ParStmtBlock GHC.RdrName GHC.RdrName
     parStmt (GHC.ParStmtBlock stmts _ typ) = (GHC.ParStmtBlock stmts [] typ)
+#endif
 
 -- ---------------------------------------------------------------------
 
