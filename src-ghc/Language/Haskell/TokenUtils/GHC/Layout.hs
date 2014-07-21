@@ -2069,8 +2069,8 @@ s2g ((sr,sc),(er,ec)) = sp
 -- ---------------------------------------------------------------------
 
 instance Allocatable GHC.ParsedSource GhcPosToken where
-  allocTokens = ghcAllocTokens
-  -- allocTokens = ghcAllocTokens'
+  -- allocTokens = ghcAllocTokens
+  allocTokens = ghcAllocTokens'
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan
@@ -2352,7 +2352,7 @@ allocTokensSrcSpans modu = r
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
     -- r = synthesizel [] redf (start `mkQ` bb
     r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
-    --                        `extQ` localBinds
+    --                       `extQ` localBinds
                            ) modu
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
@@ -2580,16 +2580,41 @@ addLayout parsed tree = r
 
     lmatch :: GHC.LMatch GHC.RdrName -> [LayoutTree GhcPosToken]
     -- lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))) = tt
-    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds binds)) )) = tt
+    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) = tt
       where
-        z = openZipperToSpan (gs2f l) ztree
+        bindList = GHC.bagToList binds
+
+        startBind = startPosForList bindList
+        startSig  = startPosForList sigs
+        start = if startSig < startBind then startSig else startBind
+
+        endBind = endPosForList bindList
+        endSig  = endPosForList sigs
+        end = if endSig > endBind then endSig else endBind
+
+        z = openZipperToSpan (ss2f (start,end)) ztree
+        z' = gfromJust "addLayout.lmatch" $ Z.parent z
+        (Node e subs) = Z.tree z'
+        (rhsTree,whereTree,localBindsTree) = case subs of
+          (rhsTree:whereTree:localBindsTree) -> (rhsTree,whereTree,localBindsTree)
+          _ -> error $ "addLayout.lmatch:unexpected tree found:" ++ show subs
+
+        so = makeOffset 0 0
+        p1 = (0,0)
+        (rt,ct) = (0,0)
+        bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
+
+        subs' = [rhsTree,whereTree,bindsLayout]
+        z'' = Z.setTree (Node e subs') z'
 
         -- Need to get tokens, look for the where, and identify how it
         -- fits in
 
         -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
         -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
-        tt = trace ("lmatch:z=" ++ drawTreeWithToks (Z.tree z)) undefined
+        tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) undefined
+        -- tt = trace ("lmatch:(start,end)=" ++ show (start,end,middle)) undefined
+
     lmatch _ = []
 
 -- ---------------------------------------------------------------------
