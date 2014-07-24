@@ -2332,7 +2332,7 @@ ghcAllocTokens' parsed toks = r
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
 
-    ss4 = addLayout parsed ss3
+    ss4 = addLayout' parsed ss3
 
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
@@ -2599,10 +2599,31 @@ mkQ :: ( Typeable a
                         Just b  -> br b
                         Nothing -> r
 
+-- | A generic query with a left-associative binary operator
+gmapQl :: forall r r'. (r -> r' -> r) -> r -> (forall d. Data d => d -> r') -> a -> r
+gmapQl o r f = unCONST . gfoldl k z
+  where
+    k :: Data d => CONST r (d->b) -> d -> CONST r b
+    k c x = CONST $ (unCONST c) `o` f x
+    z :: g -> CONST r g
+    z _   = CONST r
+
+-- | A generic query with a right-associative binary operator
+gmapQr :: forall r r'. (r' -> r -> r) -> r -> (forall d. Data d => d -> r') -> a -> r
+gmapQr o r0 f x0 = unQr (gfoldl k (const (Qr id)) x0) r0
+  where
+    k :: Data d => Qr r (d->b) -> d -> Qr r b
+    k (Qr c) x = Qr (\r -> c (f x `o` r))
+
+
+-- | A generic query that processes the immediate subterms and returns a list
+-- of results.  The list is given in the same order as originally specified
+-- in the declaratoin of the data constructors.
+gmapQ :: (forall d. Data d => d -> u) -> a -> [u]
+gmapQ f = gmapQr (:) [] f
+
+
 -}
-
-mk
-
 
 
 -- ---------------------------------------------------------------------
@@ -2625,10 +2646,10 @@ everywhereStaged1' stage f x
 {-
 -- | gmapQl with accumulation
 gmapAccumQl :: Data d
-            => (r -> r' -> r)
-            -> r
-            -> (forall e. Data e => a -> e -> (a,r'))
-            -> a -> d -> (a, r)
+            => (r -> r' -> r)  -- combining fn
+            -> r               -- initial value
+            -> (forall e. Data e => a -> e -> (a,r')) -- query given accumulator 'a' and current term
+            -> a -> d -> (a, r)                       -- initial a. What is d0?
 gmapAccumQl o r0 f a0 d0 = let (a1, r1) = gfoldlAccum k z a0 d0
                            in (a1, unCONST r1)
  where
@@ -2657,6 +2678,110 @@ gmapAccumQ :: Data d
 gmapAccumQ f = gmapAccumQr (:) [] f
 -}
 -- end of from Data.Generics.Twins
+
+-- ---------------------------------------------------------------------
+
+-- |Traverse the parsed source looking for points requiring layout,
+-- and insert them into the LayoutTree at the appropriate point
+addLayout' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
+addLayout' parsed tree = r
+  where
+    start :: LayoutTree (GhcPosToken) -> Z.TreePos Z.Full (Entry GhcPosToken)
+    start old = Z.fromTree old
+
+    -- r = synthesize [] redf (start `mkQ` bb
+    -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
+    -- r = synthesizel [] redf (start `mkQ` bb
+    r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
+    --                       `extQ` localBinds
+                           ) parsed
+
+    -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
+    bb :: GHC.SrcSpan -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
+    bb ss vv = vv -- error $ "allocTokensSrcSpans:got weird ss:" ++ show ss
+
+    -- --------------
+{-
+    localBinds :: GHC.HsLocalBinds GHC.RdrName -> [LayoutTree a] -> [LayoutTree a]
+    localBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) vv = r
+      where
+        bindList = GHC.bagToList binds
+
+        startBind = startPosForList bindList
+        startSig  = startPosForList sigs
+        start = if startSig < startBind then startSig else startBind
+
+        endBind = endPosForList bindList
+        endSig  = endPosForList sigs
+        end = if endSig > endBind then endSig else endBind
+
+        -- s1 will contain the 'where' token, split into prior comments,
+        -- the token, and post comments so that if the 'where' token must
+        -- be removed the comments will stay
+        (s1p,s1r) = break isWhereOrLet s1
+        (w,s1a)   = break (not.isWhereOrLet) s1r
+        whereLayout = makeLeafFromToks s1p ++ makeLeafFromToks w ++ makeLeafFromToks s1a
+
+        firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+        (ro,co) = case (filter isWhereOrLet s1) of
+                   [] -> (0,0)
+                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+
+        (rt,ct) = calcLastTokenPos toksBinds
+
+        r = undefined
+    localBinds _ vv = vv
+-}
+    -- --------------
+
+    mergeSubs as bs = as ++ bs
+
+
+    -- TODO: redf exists identically in the HSE version, harvest commonality
+    redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    redf [] b = b
+    redf a [] = a
+
+    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
+      =
+        let
+          (as,ae) = treeStartEnd a
+          (bs,be) = treeStartEnd b
+          ss = combineSpans s1 s2
+          ret =
+           case (compare as bs,compare ae be) of
+             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
+
+             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
+             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
+
+             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
+             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
+
+             (_,_) -> if ae <= bs
+                        then [Node e [a,b]]
+                        else if be <= as
+                          then [Node e [b,a]]
+                          else -- fully nested case
+                            [Node e1 (sub1++[b])] -- should merge subs
+                        where
+                          e = Entry ss NoChange []
+          (Node (Entry _ _lr []) _) = head ret
+
+        in
+         {-
+         trace (show ((compare as bs,compare ae be),(f2ss $ treeStartEnd a,l1,length sub1)
+                                                   ,(f2ss $ treeStartEnd b,l2,length sub2)
+                                            --        , (as,ae,bs,be,ss)
+                                                   ))
+
+         -}
+         ret
+
+    redf new  old = error $ "bar2.redf:" ++ show (new,old)
 
 -- ---------------------------------------------------------------------
 
