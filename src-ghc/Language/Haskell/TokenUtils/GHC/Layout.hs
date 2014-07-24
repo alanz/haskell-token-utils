@@ -2552,6 +2552,114 @@ everythingStaged stage k z f x
 
 -- ---------------------------------------------------------------------
 
+-- | Summarise all nodes in top-down, left-to-right order, carrying some state
+-- down the tree during the computation, but not left-to-right to siblings.
+everythingWithContext' :: s -> (r -> r -> r) -> GenericQ (s -> (r, s)) -> GenericQ r
+everythingWithContext' s0 f q x =
+  foldl f r (gmapQ (everythingWithContext' s' f q) x)
+    where (r, s') = q x s0
+
+-- | Summarise all nodes in top-down, left-to-right order, carrying some state
+-- down the tree during the computation, but not left-to-right to siblings.
+everythingWithContextStaged :: SYB.Stage -> r -> s -> (r -> r -> r) -> GenericQ (s -> (r, s)) -> GenericQ r
+everythingWithContextStaged stage z s0 f q x
+  | checkItemStage stage x = z
+  | otherwise = foldl f r (gmapQ (everythingWithContextStaged stage z s' f q) x)
+    where (r, s') = q x s0
+
+
+applyQueryStaged :: SYB.Stage -> r -> GenericQ (r -> r) -> GenericQ r
+applyQueryStaged stage s0 q x
+  | checkItemStage stage x = s0
+  | otherwise = undefined
+
+
+{-
+gfoldlAccum :: Data d
+  => (forall e r. Data e => a -> c (e -> r) -> e -> (a, c r))
+  -> (forall g. a -> g -> (a, c g))
+  -> a
+  -> d
+  -> (a, c d)
+-- gfoldl with accumulation
+
+
+-- | Make a generic query;
+--   start from a type-specific case;
+--   return a constant otherwise
+--
+mkQ :: ( Typeable a
+       , Typeable b
+       )
+    => r
+    -> (b -> r)
+    -> a
+    -> r
+(r `mkQ` br) a = case cast a of
+                        Just b  -> br b
+                        Nothing -> r
+
+-}
+
+mk
+
+
+
+-- ---------------------------------------------------------------------
+
+-- | Bottom-up transformation
+everywhereStaged1 ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Data a => a -> a
+everywhereStaged1 stage f x
+  | checkItemStage stage x = x
+  | otherwise = (f . gmapT (everywhereStaged1 stage f)) x
+
+-- | Top-down version of everywhereStaged
+everywhereStaged1' ::  SYB.Stage -> (forall a. Data a => a -> a) -> forall a. Data a => a -> a
+everywhereStaged1' stage f x
+  | checkItemStage stage x = x
+  | otherwise = (gmapT (everywhereStaged1' stage f) . f) x
+
+
+-- ---------------------------------------------------------------------
+-- From Data.Generics.Twins
+{-
+-- | gmapQl with accumulation
+gmapAccumQl :: Data d
+            => (r -> r' -> r)
+            -> r
+            -> (forall e. Data e => a -> e -> (a,r'))
+            -> a -> d -> (a, r)
+gmapAccumQl o r0 f a0 d0 = let (a1, r1) = gfoldlAccum k z a0 d0
+                           in (a1, unCONST r1)
+ where
+  k a (CONST c) d = let (a', r) = f a d
+                     in (a', CONST (c `o` r))
+  z a _ = (a, CONST r0)
+
+
+-- | gmapQr with accumulation
+gmapAccumQr :: Data d
+            => (r' -> r -> r)
+            -> r
+            -> (forall e. Data e => a -> e -> (a,r'))
+            -> a -> d -> (a, r)
+gmapAccumQr o r0 f a0 d0 = let (a1, l) = gfoldlAccum k z a0 d0
+                           in (a1, unQr l r0)
+ where
+  k a (Qr c) d = let (a',r') = f a d
+                  in (a', Qr (\r -> c (r' `o` r)))
+  z a _ = (a, Qr id)
+
+-- | gmapQ with accumulation
+gmapAccumQ :: Data d
+           => (forall e. Data e => a -> e -> (a,q))
+           -> a -> d -> (a, [q])
+gmapAccumQ f = gmapAccumQr (:) [] f
+-}
+-- end of from Data.Generics.Twins
+
+-- ---------------------------------------------------------------------
+
 -- |Traverse the parsed source looking for points requiring layout,
 -- and insert them into the LayoutTree at the appropriate point
 addLayout :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
