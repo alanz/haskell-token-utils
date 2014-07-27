@@ -2332,7 +2332,7 @@ ghcAllocTokens' parsed toks = r
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
 
-    ss4 = addLayout' parsed ss3
+    ss4 = addLayout' parsed' ss3
 
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
@@ -2352,7 +2352,6 @@ allocTokensSrcSpans modu = r
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
     -- r = synthesizel [] redf (start `mkQ` bb
     r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
-    --                       `extQ` localBinds
                            ) modu
 
     -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
@@ -2360,40 +2359,6 @@ allocTokensSrcSpans modu = r
     bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
     bb ss vv = vv -- error $ "allocTokensSrcSpans:got weird ss:" ++ show ss
 
-    -- --------------
-{-
-    localBinds :: GHC.HsLocalBinds GHC.RdrName -> [LayoutTree a] -> [LayoutTree a]
-    localBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) vv = r
-      where
-        bindList = GHC.bagToList binds
-
-        startBind = startPosForList bindList
-        startSig  = startPosForList sigs
-        start = if startSig < startBind then startSig else startBind
-
-        endBind = endPosForList bindList
-        endSig  = endPosForList sigs
-        end = if endSig > endBind then endSig else endBind
-
-        -- s1 will contain the 'where' token, split into prior comments,
-        -- the token, and post comments so that if the 'where' token must
-        -- be removed the comments will stay
-        (s1p,s1r) = break isWhereOrLet s1
-        (w,s1a)   = break (not.isWhereOrLet) s1r
-        whereLayout = makeLeafFromToks s1p ++ makeLeafFromToks w ++ makeLeafFromToks s1a
-
-        firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
-        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
-        (ro,co) = case (filter isWhereOrLet s1) of
-                   [] -> (0,0)
-                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
-                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
-
-        (rt,ct) = calcLastTokenPos toksBinds
-
-        r = undefined
-    localBinds _ vv = vv
--}
     -- --------------
 
     mergeSubs as bs = as ++ bs
@@ -2454,7 +2419,7 @@ synthesizel z o f x = f x (foldl o z (gmapQ (synthesizel z o f) x))
 -- Staged version of synthesizel
 synthesizelStaged :: SYB.Stage -> t -> s -> (s -> t -> s) -> GenericQ (s -> t) -> GenericQ t
 synthesizelStaged stage zt z o f x
-  | checkItemStage stage x = zt
+  | checkItemStage stage x = zt -- hmm, should carry the original through?
   | otherwise = f x (foldl' o z (gmapQ ((synthesizelStaged stage zt) z o f) x))
 
 -- ---------------------------------------------------------------------
@@ -2683,28 +2648,57 @@ gmapAccumQ f = gmapAccumQr (:) [] f
 
 -- |Traverse the parsed source looking for points requiring layout,
 -- and insert them into the LayoutTree at the appropriate point
-addLayout' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
-addLayout' parsed tree = r
+-- addLayout' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
+addLayout' :: Data a => a -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
+addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
   where
-    start :: LayoutTree (GhcPosToken) -> Z.TreePos Z.Full (Entry GhcPosToken)
-    start old = Z.fromTree old
+    start :: [Z.TreePos Z.Full (Entry GhcPosToken)] -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    -- start old = Z.fromTree old
+    start old = old
+
+    initZipper :: [Z.TreePos Z.Full (Entry GhcPosToken)]
+    initZipper = [Z.fromTree tree]
 
     -- r = synthesize [] redf (start `mkQ` bb
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
-    -- r = synthesizel [] redf (start `mkQ` bb
-    r = synthesizelStaged SYB.Parser [] [] redf (start `mkQ` bb
-    --                       `extQ` localBinds
+    -- r = synthesizel initZipper redf (
+    r = synthesizelStaged SYB.Parser initZipper initZipper redf (
+                           start
+                           -- `mkQ` bb
+                           `mkQ` lmatch
+--                           `extQ` bb
                            ) parsed
 
-    -- ends up as GenericQ (SrcSpanInfo -> LayoutTree TuToken)
-    bb :: GHC.SrcSpan -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
-    bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
-    bb ss vv = vv -- error $ "allocTokensSrcSpans:got weird ss:" ++ show ss
+    r' = error $ "addLayout':length r=" ++ show (length r)
 
-    -- --------------
-{-
-    localBinds :: GHC.HsLocalBinds GHC.RdrName -> [LayoutTree a] -> [LayoutTree a]
-    localBinds (GHC.HsValBinds (GHC.ValBindsIn binds sigs)) vv = r
+    bb :: GHC.SrcSpan -> [a] -> [a]
+    -- bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
+    bb ss vv = vv -- error $ "addLayout':got weird ss:" ++ show ss
+
+
+    -- ---------------------------------
+
+    lhsdecl :: GHC.LHsDecl GHC.RdrName
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    lhsdecl x z = error $ "lhsdecl hit"
+
+    -- ---------------------------------
+
+    lexpr :: GHC.LHsExpr GHC.RdrName
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    lexpr x z = error $ "lexpr hit"
+
+    -- ---------------------------------
+
+
+    -- lmatch :: GHC.LMatch GHC.RdrName -> Z.TreePos Z.Full (Entry GhcPosToken)
+    --       -> Z.TreePos Z.Full (Entry GhcPosToken)
+    lmatch :: GHC.LMatch GHC.RdrName
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) [ztree] = tt
       where
         bindList = GHC.bagToList binds
 
@@ -2716,72 +2710,40 @@ addLayout' parsed tree = r
         endSig  = endPosForList sigs
         end = if endSig > endBind then endSig else endBind
 
-        -- s1 will contain the 'where' token, split into prior comments,
-        -- the token, and post comments so that if the 'where' token must
-        -- be removed the comments will stay
-        (s1p,s1r) = break isWhereOrLet s1
-        (w,s1a)   = break (not.isWhereOrLet) s1r
-        whereLayout = makeLeafFromToks s1p ++ makeLeafFromToks w ++ makeLeafFromToks s1a
+        z = openZipperToSpan (ss2f (start,end)) ztree
+        z' = gfromJust "addLayout.lmatch" $ Z.parent z
+        (Node e subs) = Z.tree z'
+        (rhsTree,whereTree,localBindsTree) = case subs of
+          (rhsTree:whereTree:localBindsTree) -> (rhsTree,whereTree,localBindsTree)
+          _ -> error $ "addLayout.lmatch:unexpected tree found:" ++ show subs
 
-        firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
-        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
-        (ro,co) = case (filter isWhereOrLet s1) of
-                   [] -> (0,0)
-                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
-                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+        so = makeOffset 0 0
+        p1 = (0,0)
+        (rt,ct) = (0,0)
+        bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
 
-        (rt,ct) = calcLastTokenPos toksBinds
+        subs' = [rhsTree,whereTree,bindsLayout]
+        z'' = Z.setTree (Node e subs') z'
 
-        r = undefined
-    localBinds _ vv = vv
--}
+        -- Need to get tokens, look for the where, and identify how it
+        -- fits in
+
+        -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+        -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
+        -- tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
+        -- tt = trace ("lmatch:(start,end)=" ++ show (start,end)) undefined
+        tt = error $ "lmatch hit hit"
+    lmatch x z = error $ "lmatch hit"
+
     -- --------------
 
-    mergeSubs as bs = as ++ bs
-
-
     -- TODO: redf exists identically in the HSE version, harvest commonality
-    redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
-    redf [] b = b
-    redf a [] = a
-
-    redf [a@(Node e1@(Entry s1 l1 []) sub1)]  [b@(Node _e2@(Entry s2 l2 []) sub2)]
-      =
-        let
-          (as,ae) = treeStartEnd a
-          (bs,be) = treeStartEnd b
-          ss = combineSpans s1 s2
-          ret =
-           case (compare as bs,compare ae be) of
-             (EQ,EQ) -> [Node (Entry s1 (l1 <> l2) []) (sub1 ++ sub2)]
-
-             (LT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub1 [b])]    -- b is sub of a
-             (GT,EQ) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs sub2 [a])]    -- a is sub of b
-
-             (EQ,GT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [b] sub1)]    -- b is sub of a
-             (EQ,LT) -> [Node (Entry ss (l1 <> l2) []) (mergeSubs [a] sub2)]    -- a is sub of b
-
-             (_,_) -> if ae <= bs
-                        then [Node e [a,b]]
-                        else if be <= as
-                          then [Node e [b,a]]
-                          else -- fully nested case
-                            [Node e1 (sub1++[b])] -- should merge subs
-                        where
-                          e = Entry ss NoChange []
-          (Node (Entry _ _lr []) _) = head ret
-
-        in
-         {-
-         trace (show ((compare as bs,compare ae be),(f2ss $ treeStartEnd a,l1,length sub1)
-                                                   ,(f2ss $ treeStartEnd b,l2,length sub2)
-                                            --        , (as,ae,bs,be,ss)
-                                                   ))
-
-         -}
-         ret
-
-    redf new  old = error $ "bar2.redf:" ++ show (new,old)
+    -- redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
+    redf :: [Z.TreePos Z.Full (Entry GhcPosToken)] -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+         -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    -- redf new  old = error $ "bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)
+    -- redf new  old = trace ("bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)) new
+    redf new  old = new++old
 
 -- ---------------------------------------------------------------------
 
