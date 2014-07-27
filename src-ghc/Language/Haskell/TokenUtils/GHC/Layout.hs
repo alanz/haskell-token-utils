@@ -2652,12 +2652,12 @@ gmapAccumQ f = gmapAccumQr (:) [] f
 addLayout' :: Data a => a -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
 addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
   where
-    start :: [Z.TreePos Z.Full (Entry GhcPosToken)] -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    start :: Z.TreePos Z.Full (Entry GhcPosToken) -> Z.TreePos Z.Full (Entry GhcPosToken)
     -- start old = Z.fromTree old
     start old = old
 
-    initZipper :: [Z.TreePos Z.Full (Entry GhcPosToken)]
-    initZipper = [Z.fromTree tree]
+    initZipper :: Z.TreePos Z.Full (Entry GhcPosToken)
+    initZipper = Z.fromTree tree
 
     -- r = synthesize [] redf (start `mkQ` bb
     -- NOTE: the token re-alignement needs a left-biased tree, not a right-biased one, hence synthesizel
@@ -2669,9 +2669,9 @@ addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
 --                           `extQ` bb
                            ) parsed
 
-    r' = error $ "addLayout':length r=" ++ show (length r)
+    r' = error $ "addLayout':r=" ++ show r
 
-    bb :: GHC.SrcSpan -> [a] -> [a]
+    bb :: GHC.SrcSpan -> a -> a
     -- bb ss@(GHC.RealSrcSpan _) vv = [Node (Entry (gs2f ss) NoChange []) vv]
     bb ss vv = vv -- error $ "addLayout':got weird ss:" ++ show ss
 
@@ -2679,15 +2679,15 @@ addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
     -- ---------------------------------
 
     lhsdecl :: GHC.LHsDecl GHC.RdrName
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
     lhsdecl x z = error $ "lhsdecl hit"
 
     -- ---------------------------------
 
     lexpr :: GHC.LHsExpr GHC.RdrName
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
     lexpr x z = error $ "lexpr hit"
 
     -- ---------------------------------
@@ -2696,9 +2696,9 @@ addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
     -- lmatch :: GHC.LMatch GHC.RdrName -> Z.TreePos Z.Full (Entry GhcPosToken)
     --       -> Z.TreePos Z.Full (Entry GhcPosToken)
     lmatch :: GHC.LMatch GHC.RdrName
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
-                 -> [Z.TreePos Z.Full (Entry GhcPosToken)]
-    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) [ztree] = tt
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
+                 -> Z.TreePos Z.Full (Entry GhcPosToken)
+    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) ztree = tt
       where
         bindList = GHC.bagToList binds
 
@@ -2730,20 +2730,22 @@ addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
 
         -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
         -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
-        -- tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
+        tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
         -- tt = trace ("lmatch:(start,end)=" ++ show (start,end)) undefined
-        tt = error $ "lmatch hit hit"
-    lmatch x z = error $ "lmatch hit"
+        -- tt = error $ "lmatch hit hit"
+    lmatch (GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs binds) )) ztree
+         = trace ("lmatch trace1" ++ (SYB.showData SYB.Parser 0 binds)) ztree
+    lmatch x z = z -- error $ "lmatch hit" ++ (SYB.showData SYB.Parser 0 x)
 
     -- --------------
 
     -- TODO: redf exists identically in the HSE version, harvest commonality
     -- redf :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
-    redf :: [Z.TreePos Z.Full (Entry GhcPosToken)] -> [Z.TreePos Z.Full (Entry GhcPosToken)]
-         -> [Z.TreePos Z.Full (Entry GhcPosToken)]
+    redf :: Z.TreePos Z.Full (Entry GhcPosToken) -> Z.TreePos Z.Full (Entry GhcPosToken)
+         -> Z.TreePos Z.Full (Entry GhcPosToken)
     -- redf new  old = error $ "bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)
     -- redf new  old = trace ("bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)) new
-    redf new  old = new++old
+    redf new  old = old
 
 -- ---------------------------------------------------------------------
 
