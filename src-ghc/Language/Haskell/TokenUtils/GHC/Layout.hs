@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# Language FlexibleContexts      #-}
 {-# Language MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 
@@ -57,6 +58,7 @@ import qualified GHC.SYB.Utils as SYB
 import qualified Data.Generics as SYB
 
 import Control.Exception
+import Control.Monad.State.Lazy
 import Data.Generics hiding (GT)
 import Data.List
 import Data.Monoid
@@ -2332,7 +2334,7 @@ ghcAllocTokens' parsed toks = r
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
 
-    ss4 = addLayout' parsed' ss3
+    ss4 = addLayout'' parsed' ss3
 
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
@@ -2646,6 +2648,76 @@ gmapAccumQ f = gmapAccumQr (:) [] f
 
 -- ---------------------------------------------------------------------
 
+type TreeZipper = Z.TreePos Z.Full (Entry GhcPosToken)
+
+-- |Traverse the parsed source looking for points requiring layout,
+-- and insert them into the LayoutTree at the appropriate point
+addLayout'' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
+addLayout'' parsed tree = Z.toTree zz
+  where
+    initZipper :: Z.TreePos Z.Full (Entry GhcPosToken)
+    initZipper = Z.fromTree tree
+
+    -- r :: (Data a) => a -> State TreeZipper a
+    r :: State TreeZipper GHC.ParsedSource
+    r = do
+          everywhereMStaged SYB.Parser (
+                           mkM lmatch
+                           ) parsed
+
+    zz = execState r initZipper
+
+    r'' = error $ "addLayout':r=" ++ show zz
+
+    -- ---------------------------------
+
+
+    -- lmatch :: (Monad m) => GHC.LMatch GHC.RdrName -> m (GHC.LMatch GHC.RdrName)
+    lmatch :: GHC.LMatch GHC.RdrName -> State TreeZipper (GHC.LMatch GHC.RdrName)
+    lmatch lm@(GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) = do
+      ztree <- get
+      -- let ztree = undefined
+      let
+        bindList = GHC.bagToList binds
+
+        startBind = startPosForList bindList
+        startSig  = startPosForList sigs
+        start = if startSig < startBind then startSig else startBind
+
+        endBind = endPosForList bindList
+        endSig  = endPosForList sigs
+        end = if endSig > endBind then endSig else endBind
+
+        z = openZipperToSpan (ss2f (start,end)) ztree
+        z' = gfromJust "addLayout.lmatch" $ Z.parent z
+        (Node e subs) = Z.tree z'
+        (rhsTree,whereTree,localBindsTree) = case subs of
+          (rhsTree:whereTree:localBindsTree) -> (rhsTree,whereTree,localBindsTree)
+          _ -> error $ "addLayout.lmatch:unexpected tree found:" ++ show subs
+
+        so = makeOffset 0 0
+        p1 = (0,0)
+        (rt,ct) = (0,0)
+        bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
+
+        subs' = [rhsTree,whereTree,bindsLayout]
+        z'' = Z.setTree (Node e subs') z'
+
+        -- Need to get tokens, look for the where, and identify how it
+        -- fits in
+
+        -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+        -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
+        tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
+        -- tt = trace ("lmatch:(start,end)=" ++ show (start,end)) undefined
+        -- tt = error $ "lmatch hit hit"
+      put z''
+      return lm
+    lmatch x = return x -- error $ "lmatch hit" ++ (SYB.showData SYB.Parser 0 x)
+
+
+-- ---------------------------------------------------------------------
+
 -- |Traverse the parsed source looking for points requiring layout,
 -- and insert them into the LayoutTree at the appropriate point
 -- addLayout' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
@@ -2745,7 +2817,7 @@ addLayout' parsed tree = Z.toTree $ ghead "addLayout'" r'
          -> Z.TreePos Z.Full (Entry GhcPosToken)
     -- redf new  old = error $ "bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)
     -- redf new  old = trace ("bar2.redf:" ++ show (drawTreeWithToks $ Z.toTree new,drawTreeWithToks $ Z.toTree old)) new
-    redf new  old = old
+    redf new  old = trace ("redf:ignoring old[" ++ (drawTreeWithToks $ Z.toTree old) ++ "]") new
 
 -- ---------------------------------------------------------------------
 
@@ -2849,5 +2921,28 @@ lexStringToRichTokens startLoc str = do
 
 
 -- ---------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------
+
+-- | Monadic variation on everywhere
+everywhereMStaged :: Monad m => SYB.Stage -> SYB.GenericM m -> SYB.GenericM m
+
+-- Bottom-up order is also reflected in order of do-actions
+everywhereMStaged stage f x
+  | checkItemStage stage x = return x
+  | otherwise = do x' <- gmapM (everywhereMStaged stage f) x
+                   f x'
+
+
+-- | Monadic variation on everywhere'
+everywhereMStaged' :: Monad m => SYB.Stage -> SYB.GenericM m -> SYB.GenericM m
+
+-- Top-down order is also reflected in order of do-actions
+everywhereMStaged' stage f x
+  | checkItemStage stage x = return x
+  | otherwise = do x' <- f x
+                   gmapM (everywhereMStaged' stage f) x'
+
+
 
 -- EOF
