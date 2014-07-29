@@ -2662,7 +2662,8 @@ addLayout'' parsed tree = Z.toTree zz
     r :: State TreeZipper GHC.ParsedSource
     r = do
           everywhereMStaged SYB.Parser (
-                           mkM lmatch
+                           mkM grhss
+                           `extM` hsexpr
                            ) parsed
 
     zz = execState r initZipper
@@ -2672,6 +2673,97 @@ addLayout'' parsed tree = Z.toTree zz
     -- ---------------------------------
 
 
+    hsexpr :: GHC.HsExpr GHC.RdrName -> State TreeZipper (GHC.HsExpr GHC.RdrName)
+    hsexpr e@(GHC.HsDo GHC.DoExpr stmts typ) = do
+      ztree <- get
+      let
+{-
+    doToks = before ++ [ghead ("allocExpr:" ++ (show toksBinds') ++ (SYB.showData SYB.Renamer 0 _e)) including]
+    toksBinds = gtail ("allocExpr.HsDo" ++ show (l,before,including,toks)) including
+
+    bindsLayout' = allocList stmts toksBinds allocStmt
+
+    firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+    p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+    (ro,co) = case (filter isDo doToks) of
+               [] -> (0,0)
+               (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                         ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+
+    (rt,ct) = calcLastTokenPos toksBinds
+
+    so = makeOffset ro (co -1)
+
+    bindsLayout = case bindsLayout' of
+      [] -> []
+      bs -> [placeAbove so p1 (rt,ct) bs]
+
+    r = strip $ (makeLeafFromToks (s1++doToks) ++ bindsLayout ++ makeLeafFromToks toks1)
+
+-}
+        z = error "addLayout''.hsexpr:undefined"
+      put z
+      return e
+
+    hsexpr e = return e
+
+    -- ---------------------------------
+
+    grhss :: GHC.GRHSs GHC.RdrName -> State TreeZipper (GHC.GRHSs GHC.RdrName)
+    grhss g@(GHC.GRHSs _rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) = do
+      ztree <- get
+      let
+        bindList = GHC.bagToList binds
+
+        startBind = startPosForList bindList
+        startSig  = startPosForList sigs
+        start = if startSig < startBind then startSig else startBind
+
+        endBind = endPosForList bindList
+        endSig  = endPosForList sigs
+        end = if endSig > endBind then endSig else endBind
+
+        z = openZipperToSpan (ss2f (start,end)) ztree
+        z' = gfromJust "addLayout.lmatch" $ Z.parent z
+        (Node e subs) = Z.tree z'
+        (rhsTree,whereTree,localBindsTree) = case subs of
+          (rhsTree:whereTree:localBindsTree) -> (rhsTree,whereTree,localBindsTree)
+          _ -> error $ "addLayout.lmatch:unexpected tree found:" ++ show subs
+
+
+        toksBinds = retrieveTokensInterim $ ghead "addLayout''.lmatch.1" localBindsTree
+        firstBindTok = ghead "addLayout''.lmatch.2" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+
+        s1 = retrieveTokensInterim whereTree
+
+        (ro,co) = case (filter isWhereOrLet s1) of
+                   [] -> (0,0)
+                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+
+        so = makeOffset ro (co - 1)
+
+        (rt,ct) = calcLastTokenPos toksBinds
+
+        bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
+
+        subs' = [rhsTree,whereTree,bindsLayout]
+        z'' = Z.setTree (Node e subs') z'
+
+        -- Need to get tokens, look for the where, and identify how it
+        -- fits in
+
+        -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
+        -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
+        tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
+        -- tt = trace ("lmatch:(start,end)=" ++ show (start,end)) undefined
+        -- tt = error $ "lmatch hit hit"
+      put z''
+      return g
+    grhss x = return x -- error $ "lmatch hit" ++ (SYB.showData SYB.Parser 0 x)
+
+{-
     lmatch :: GHC.LMatch GHC.RdrName -> State TreeZipper (GHC.LMatch GHC.RdrName)
     lmatch lm@(GHC.L _l (GHC.Match _pats _mtyp (GHC.GRHSs _rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) = do
       ztree <- get
@@ -2726,6 +2818,7 @@ addLayout'' parsed tree = Z.toTree zz
       put z''
       return lm
     lmatch x = return x -- error $ "lmatch hit" ++ (SYB.showData SYB.Parser 0 x)
+-}
 
 
 -- ---------------------------------------------------------------------
