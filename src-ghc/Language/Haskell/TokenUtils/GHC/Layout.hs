@@ -2338,9 +2338,9 @@ ghcAllocTokens' parsed toks = r
 
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
-    r = error $ "foo=" ++ drawTreeWithToks ss4
+    -- r = error $ "foo=" ++ drawTreeWithToks ss4
     -- r = undefined
-    -- r = ss4
+    r = ss4
 
 -- ---------------------------------------------------------------------
 
@@ -2672,9 +2672,8 @@ addLayout'' parsed tree = Z.toTree zz
     -- ---------------------------------
 
 
-    -- lmatch :: (Monad m) => GHC.LMatch GHC.RdrName -> m (GHC.LMatch GHC.RdrName)
     lmatch :: GHC.LMatch GHC.RdrName -> State TreeZipper (GHC.LMatch GHC.RdrName)
-    lmatch lm@(GHC.L l (GHC.Match pats mtyp (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) = do
+    lmatch lm@(GHC.L _l (GHC.Match _pats _mtyp (GHC.GRHSs _rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs))) )) = do
       ztree <- get
       -- let ztree = undefined
       let
@@ -2695,9 +2694,22 @@ addLayout'' parsed tree = Z.toTree zz
           (rhsTree:whereTree:localBindsTree) -> (rhsTree,whereTree,localBindsTree)
           _ -> error $ "addLayout.lmatch:unexpected tree found:" ++ show subs
 
-        so = makeOffset 0 0
-        p1 = (0,0)
-        (rt,ct) = (0,0)
+
+        toksBinds = retrieveTokensInterim $ ghead "addLayout''.lmatch.1" localBindsTree
+        firstBindTok = ghead "addLayout''.lmatch.2" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+
+        s1 = retrieveTokensInterim whereTree
+
+        (ro,co) = case (filter isWhereOrLet s1) of
+                   [] -> (0,0)
+                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+
+        so = makeOffset ro (co - 1)
+
+        (rt,ct) = calcLastTokenPos toksBinds
+
         bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
 
         subs' = [rhsTree,whereTree,bindsLayout]

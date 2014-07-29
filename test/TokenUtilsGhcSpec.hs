@@ -7,7 +7,7 @@ import qualified GHC        as GHC
 import qualified Lexer      as GHC
 -- import qualified SrcLoc     as GHC
 
--- import qualified GHC.SYB.Utils as SYB
+import qualified GHC.SYB.Utils as SYB
 
 -- import Control.Monad.State
 import Data.List
