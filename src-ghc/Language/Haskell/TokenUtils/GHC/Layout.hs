@@ -76,6 +76,9 @@ import qualified Data.Tree.Zipper as Z
 
 import Debug.Trace
 
+debug :: c -> String -> c
+debug = flip trace
+
 -- ---------------------------------------------------------------------
 
 -- | Extract the layout-sensitive parts of the GHC AST.
@@ -2071,8 +2074,8 @@ s2g ((sr,sc),(er,ec)) = sp
 -- ---------------------------------------------------------------------
 
 instance Allocatable GHC.ParsedSource GhcPosToken where
-  -- allocTokens = ghcAllocTokens
-  allocTokens = ghcAllocTokens'
+  allocTokens = ghcAllocTokens
+  -- allocTokens = ghcAllocTokens'
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan
@@ -2673,37 +2676,53 @@ addLayout'' parsed tree = Z.toTree zz
     -- ---------------------------------
 
 
-    hsexpr :: GHC.HsExpr GHC.RdrName -> State TreeZipper (GHC.HsExpr GHC.RdrName)
-    hsexpr e@(GHC.HsDo GHC.DoExpr stmts typ) = do
+    hsexpr :: GHC.LHsExpr GHC.RdrName -> State TreeZipper (GHC.LHsExpr GHC.RdrName)
+    hsexpr ex@(GHC.L l (GHC.HsDo _ stmts typ)) = do
       ztree <- get
       let
-{-
-    doToks = before ++ [ghead ("allocExpr:" ++ (show toksBinds') ++ (SYB.showData SYB.Renamer 0 _e)) including]
-    toksBinds = gtail ("allocExpr.HsDo" ++ show (l,before,including,toks)) including
 
-    bindsLayout' = allocList stmts toksBinds allocStmt
+        z = openZipperToSpan (gs2f l) ztree
+        z' = gfromJust "addLayout.HsDo" $ Z.parent z
+        (Node e subs) = Z.tree z
+        (beforeTree,doTree,afterTree) = case subs of
+          (bTree:dTree:aTree) -> (bTree,dTree,aTree)
+          _ -> error $ "addLayout.hsexpr:unexpected tree found:" ++ show subs
 
-    firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
-    p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
-    (ro,co) = case (filter isDo doToks) of
-               [] -> (0,0)
-               (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
-                         ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
+        toksBinds' = retrieveTokensInterim $ Z.tree z
 
-    (rt,ct) = calcLastTokenPos toksBinds
+        (before,including) = break isDo toksBinds'
+        doToks = before ++ [ghead ("addLayout''.HsDo.2:" ++ (show toksBinds')) including]
+        toksBinds = gtail ("addLayout''.HsDo" ++ show (l,before,including)) including
 
-    so = makeOffset ro (co -1)
+        -- bindsLayout' = allocList stmts toksBinds allocStmt
+        bindsLayout' = afterTree
 
-    bindsLayout = case bindsLayout' of
-      [] -> []
-      bs -> [placeAbove so p1 (rt,ct) bs]
+        firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
+        p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
+        (ro,co) = case (filter isDo doToks) of
+                   [] -> (0,0)
+                   (x:_) -> (ghcTokenRow firstBindTok - ghcTokenRow x,
+                             ghcTokenCol firstBindTok - (ghcTokenCol x + tokenLen x))
 
-    r = strip $ (makeLeafFromToks (s1++doToks) ++ bindsLayout ++ makeLeafFromToks toks1)
+        (rt,ct) = calcLastTokenPos toksBinds
 
--}
-        z = error "addLayout''.hsexpr:undefined"
-      put z
-      return e
+        so = makeOffset ro (co -1)
+
+        bindsLayout = case bindsLayout' of
+          [] -> []
+          bs -> [placeAbove so p1 (rt,ct) bs]
+
+
+        -- r = strip $ (makeLeafFromToks (s1++doToks) ++ bindsLayout ++ makeLeafFromToks toks1)
+        subs' = [beforeTree,doTree]++bindsLayout
+        -- z'' = Z.setTree (Node e subs') z'
+
+
+        -- z'' = error "addLayout''.hsexpr:undefined"
+        z'' = error $ "addLayout''.hsexpr:" ++ show (map treeStartEnd subs) ++ (drawTreeWithToks $ Z.tree z')
+      put z''
+
+      return ex
 
     hsexpr e = return e
 
@@ -2746,9 +2765,13 @@ addLayout'' parsed tree = Z.toTree zz
 
         (rt,ct) = calcLastTokenPos toksBinds
 
-        bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
+        bindsLayout = case localBindsTree of
+          [] -> []
+          bs -> [placeAbove so p1 (rt,ct) bs]
 
-        subs' = [rhsTree,whereTree,bindsLayout]
+        -- bindsLayout = placeAbove so p1 (rt,ct) localBindsTree
+
+        subs' = [rhsTree,whereTree] ++ bindsLayout
         z'' = Z.setTree (Node e subs') z'
 
         -- Need to get tokens, look for the where, and identify how it
@@ -2756,7 +2779,7 @@ addLayout'' parsed tree = Z.toTree zz
 
         -- tt = trace ("lmatch:z=" ++ show (Z.label z)) undefined
         -- tt = trace ("lmatch:z=" ++ show (Z.tree z)) undefined
-        tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
+        -- tt = trace ("lmatch:z=" ++ drawTreeWithToks bindsLayout) z''
         -- tt = trace ("lmatch:(start,end)=" ++ show (start,end)) undefined
         -- tt = error $ "lmatch hit hit"
       put z''
@@ -2940,8 +2963,10 @@ addLayout parsed tree = r
     combine :: [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken] -> [LayoutTree GhcPosToken]
     combine [] rs = rs
     combine ls [] = ls
-    combine [l] [rt] = trace ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt)) [rt]
-    combine ls rs = trace ("addLayout.combine2:" ++ show (ls,rs)) []
+    -- combine [l] [rt] = trace ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt)) [rt]
+    -- combine ls rs = trace ("addLayout.combine2:" ++ show (ls,rs)) []
+    combine [l] [rt] =  [rt] `debug` ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt))
+    combine ls rs = [] `debug` ("addLayout.combine2:" ++ show (ls,rs))
 
     lgrhs :: GHC.Located (GHC.GRHSs GHC.RdrName) -> [LayoutTree GhcPosToken]
     -- lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))) = tt
