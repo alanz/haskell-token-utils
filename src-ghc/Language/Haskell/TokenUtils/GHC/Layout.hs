@@ -503,6 +503,7 @@ allocVectD _ x = error $ "allocVectD:unexpected value:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 allocSpliceD :: ([LayoutTree GhcPosToken],[GhcPosToken]) -> GHC.LHsDecl GHC.RdrName -> ([LayoutTree GhcPosToken],[GhcPosToken])
 allocSpliceD (acc,toks) (GHC.L l (GHC.SpliceD (GHC.SpliceDecl ex _))) = (r,toks')
   where
@@ -511,7 +512,18 @@ allocSpliceD (acc,toks) (GHC.L l (GHC.SpliceD (GHC.SpliceDecl ex _))) = (r,toks'
     r = acc ++ [makeGroup (strip $ (makeLeafFromToks s1)
                      ++ exprLayout)]
 allocSpliceD _ x = error $ "allocSpliceD:unexpected value:" ++ showGhc x
-
+#else
+allocSpliceD :: ([LayoutTree GhcPosToken],[GhcPosToken]) -> GHC.LHsDecl GHC.RdrName -> ([LayoutTree GhcPosToken],[GhcPosToken])
+allocSpliceD (acc,toks) (GHC.L l (GHC.SpliceD (GHC.SpliceDecl (GHC.L _ (GHC.HsSplice _ ex)) _))) = (r,toks')
+-- SpliceD (SpliceDecl id)
+-- SpliceDecl (Located (HsSplice id)) HsExplicitFlag	
+  where
+    (s1,exprToks,toks')  = splitToksIncComments (ghcSpanStartEnd l) toks
+    exprLayout = allocExpr ex exprToks
+    r = acc ++ [makeGroup (strip $ (makeLeafFromToks s1)
+                     ++ exprLayout)]
+allocSpliceD _ x = error $ "allocSpliceD:unexpected value:" ++ showGhc x
+#endif
 -- ---------------------------------------------------------------------
 
 allocDocD :: ([LayoutTree GhcPosToken],[GhcPosToken]) -> GHC.LHsDecl GHC.RdrName -> ([LayoutTree GhcPosToken],[GhcPosToken])
@@ -538,6 +550,8 @@ allocLTyClDecl (GHC.L l (GHC.ForeignType ln _)) toks = r
     (s1,clToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     lnToks = allocLocated ln clToks
     r = [makeGroup (strip $ (makeLeafFromToks s1) ++ lnToks ++ (makeLeafFromToks toks'))]
+
+#if __GLASGOW_HASKELL__ < 708
 allocLTyClDecl (GHC.L l (GHC.TyFamily _f n@(GHC.L ln _) vars _mk)) toks = r
   where
     (s1,clToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
@@ -554,6 +568,9 @@ allocLTyClDecl (GHC.L l (GHC.TyFamily _f n@(GHC.L ln _) vars _mk)) toks = r
                      ++ (makeLeafFromToks s3)
                      ++ (makeLeafFromToks toks'))
         ]
+#endif
+
+#if __GLASGOW_HASKELL__ < 708
 #if __GLASGOW_HASKELL__ > 704
 allocLTyClDecl (GHC.L l (GHC.TyDecl (GHC.L ln _) vars def _fvs)) toks = r
   where
@@ -606,6 +623,8 @@ allocLTyClDecl (GHC.L l (GHC.TyData _ (GHC.L lc ctx) (GHC.L ln _) vars mpats mki
                      ++ (makeLeafFromToks toks')
          )]
 #endif
+#endif
+
 #if __GLASGOW_HASKELL__ > 704
 allocLTyClDecl (GHC.L l (GHC.ClassDecl (GHC.L lc ctx) n@(GHC.L ln _) vars fds sigs meths ats atdefs docs _fvs)) toks = r
 #else
@@ -631,7 +650,12 @@ allocLTyClDecl (GHC.L l (GHC.ClassDecl (GHC.L lc ctx) n@(GHC.L ln _) vars fds si
     bindList = GHC.bagToList meths
     sigMix     = makeMixedListEntry sigs     (shim allocSig)
     methsMix   = makeMixedListEntry bindList (shim allocBind)
+#if __GLASGOW_HASKELL__ > 706
+    atsMix     = makeMixedListEntry ats      (shim allocLFamilyDecl)
+    -- tcdATs :: [LFamilyDecl name]
+#else
     atsMix     = makeMixedListEntry ats      (shim allocLTyClDecl)
+#endif
 #if __GLASGOW_HASKELL__ > 704
     atsdefsMix = makeMixedListEntry atdefs   (shim allocLFamInstDecl)
 #else
@@ -647,6 +671,21 @@ allocLTyClDecl (GHC.L l (GHC.ClassDecl (GHC.L lc ctx) n@(GHC.L ln _) vars fds si
              ++ fdsLayout ++ bindsLayout
              ++ (makeLeafFromToks toks')
         ]
+
+#if __GLASGOW_HASKELL__ > 706
+allocLFamilyDecl (GHC.L l (GHC.FamilyDecl _info ln tyvars mkindsig)) toks = r
+  where
+    r = error $ "allocLFamilyDecl undefined"
+{-
+FamilyDecl
+  fdInfo :: FamilyInfo name
+  fdLName :: Located name
+  fdTyVars :: LHsTyVarBndrs name
+  fdKindSig :: Maybe (LHsKind name)
+
+
+-}
+#endif
 
 #if __GLASGOW_HASKELL__ > 704
 #else
@@ -679,10 +718,14 @@ allocLTyClDecl (GHC.L l (GHC.TySynonym n@(GHC.L ln _) vars mpats synrhs@(GHC.L l
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 allocMatches :: [GHC.LMatch GHC.RdrName] -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#else
+-- allocMatches :: [GHC.LMatch GHC.RdrName] -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#endif
 allocMatches matches toksIn = allocList matches toksIn doOne
   where
-    doOne :: GHC.LMatch GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+    -- doOne :: GHC.LMatch GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
     doOne (GHC.L lm (GHC.Match pats mtyp grhs@(GHC.GRHSs rhs _))) toks = r
       where
         (sb,matchToks,sa) = splitToksIncComments (ghcSpanStartEnd lm) toks
@@ -713,10 +756,23 @@ allocMatches matches toksIn = allocList matches toksIn doOne
                   ++ matchLayout
                   ++ (makeLeafFromToks sa))
 
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ > 706
+allocMG :: GHC.MatchGroup GHC.RdrName (GHC.LHsExpr GHC.RdrName) -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocMG (GHC.MG matches arg_typs res_type origin) toks = r
+  where
+    -- Match [LPat id] (Maybe (LHsType id)) (GRHSs id body)
+    r = allocMatches matches toks
+#endif
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 allocGRHSs :: GHC.GRHSs GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#else
+-- allocGRHSs :: GHC.GRHSs GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#endif
 allocGRHSs (GHC.GRHSs rhs localBinds) toks = r
   where
     (s1,rhsToks,bindsToks) = splitToksForList rhs toks
@@ -732,7 +788,11 @@ allocPat (GHC.L _ _) toks = makeLeafFromToks toks
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 allocRhs :: GHC.LGRHS GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#else
+-- allocRhs :: GHC.LGRHS GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#endif
 allocRhs (GHC.L l (GHC.GRHS stmts expr)) toksIn = r
   where
     (sb,toksRhs,sa) = splitToksIncComments (ghcSpanStartEnd l) toksIn
@@ -744,7 +804,11 @@ allocRhs (GHC.L l (GHC.GRHS stmts expr)) toksIn = r
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 allocStmt :: GHC.LStmt GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#else
+-- allocStmt :: GHC.LStmt GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#endif
 allocStmt (GHC.L _ (GHC.LastStmt expr _)) toks = allocExpr expr toks
 allocStmt (GHC.L _ (GHC.BindStmt pat@(GHC.L lp _) expr _ _)) toks = r
   where
@@ -752,7 +816,9 @@ allocStmt (GHC.L _ (GHC.BindStmt pat@(GHC.L lp _) expr _ _)) toks = r
     patLayout = allocPat pat patToks
     exprLayout = allocExpr expr toks'
     r = strip $ (makeLeafFromToks s1) ++ patLayout ++ exprLayout
+#if __GLASGOW_HASKELL__ < 708
 allocStmt (GHC.L _ (GHC.ExprStmt expr _ _ _)) toks = allocExpr expr toks
+#endif
 allocStmt (GHC.L _ (GHC.LetStmt binds))       toks = allocLocalBinds binds toks
 #if __GLASGOW_HASKELL__ > 704
 allocStmt (GHC.L l (GHC.ParStmt blocks _ _))  toks = r
@@ -846,11 +912,17 @@ allocExpr :: GHC.LHsExpr GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken
 allocExpr (GHC.L l (GHC.HsVar _)) toks = [makeLeaf (g2s l) NoChange toks]
 allocExpr (GHC.L l (GHC.HsLit _)) toks = [makeLeaf (g2s l) NoChange toks]
 allocExpr (GHC.L l (GHC.HsOverLit _)) toks = [makeLeaf (g2s l) NoChange toks]
+#if __GLASGOW_HASKELL__ > 706
+allocExpr (GHC.L _ (GHC.HsLam mg)) toks
+  = allocMG mg toks
+#endif
+#if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L _ (GHC.HsLam (GHC.MatchGroup matches _))) toks
   = allocMatches matches toks
 #if __GLASGOW_HASKELL__ > 704
 allocExpr (GHC.L _ (GHC.HsLamCase _ (GHC.MatchGroup matches _))) toks
   = allocMatches matches toks
+#endif
 #endif
 allocExpr (GHC.L l (GHC.HsApp e1@(GHC.L l1 _) e2)) toks = r
   where
@@ -907,7 +979,12 @@ allocExpr (GHC.L l (GHC.ExplicitTuple tupArgs _)) toks = r
              ++ (makeLeafFromToks toks')]
     r = strip $ (makeLeafFromToks sb) ++ exprLayout ++ (makeLeafFromToks sa)
 -- ExplicitTuple [HsTupArg id] Boxity
+#if __GLASGOW_HASKELL__ > 706
+allocExpr (GHC.L l (GHC.HsCase expr@(GHC.L le _) (GHC.MG matches _ _ _))) toks = r
+#endif
+#if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L l (GHC.HsCase expr@(GHC.L le _) (GHC.MatchGroup matches _))) toks = r
+#endif
   where
     (sb,toksExpr,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
     (s1,exprToks,toks1) = splitToksIncComments (ghcSpanStartEnd le) toksExpr
@@ -967,7 +1044,9 @@ allocExpr e@(GHC.L _ (GHC.HsDo GHC.PArrComp  _ _)) toks = allocExprListComp e to
 
 -- various kinds of do
 allocExpr e@(GHC.L _ (GHC.HsDo GHC.DoExpr   _ _)) toks = allocDoExpr e toks
+#if __GLASGOW_HASKELL__ < 708
 allocExpr e@(GHC.L _ (GHC.HsDo GHC.GhciStmt _ _)) toks = allocDoExpr e toks
+#endif
 allocExpr e@(GHC.L _ (GHC.HsDo GHC.MDoExpr  _ _)) toks = allocDoExpr e toks
 
 
@@ -976,7 +1055,12 @@ allocExpr e@(GHC.L _ (GHC.HsDo (GHC.PatGuard _) _ _)) _ = error $ "allocExpr und
 allocExpr e@(GHC.L _ (GHC.HsDo (GHC.ParStmtCtxt _) _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
 allocExpr e@(GHC.L _ (GHC.HsDo (GHC.TransStmtCtxt _) _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
 
+#if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L l (GHC.ExplicitList _ exprs)) toks = r
+#else
+allocExpr (GHC.L l (GHC.ExplicitList _ _ exprs)) toks = r
+-- ExplicitList PostTcType (Maybe (SyntaxExpr id)) [LHsExpr id]
+#endif
   where
     (sb,toksExpr,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
     exprLayout = [makeGroup $ allocList exprs toksExpr allocExpr]
@@ -1010,7 +1094,12 @@ allocExpr (GHC.L l (GHC.RecordUpd expr@(GHC.L le _) binds _cons _ptctypes1 _ptct
 {-
 RecordUpd (LHsExpr id) (HsRecordBinds id) [DataCon] [PostTcType] [PostTcType]
 -}
+#if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L l (GHC.ArithSeq _ info)) toks = r
+#else
+allocExpr (GHC.L l (GHC.ArithSeq _ _ info)) toks = r
+-- ArithSeq PostTcExpr (Maybe (SyntaxExpr id)) (ArithSeqInfo id)
+#endif
   where
     (sb,toksExpr,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
     exprLayout = [makeGroup $ allocArithSeqInfo info toksExpr]
@@ -1049,10 +1138,15 @@ allocExpr (GHC.L l (GHC.HsBracket bracket)) toks = r
 
 -- Note: these are only present after the typechecker
 allocExpr e@(GHC.L _ (GHC.ExprWithTySigOut _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
+#if __GLASGOW_HASKELL__ < 708
 allocExpr e@(GHC.L _ (GHC.HsBracketOut _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
+#endif
 
-
+#if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L _l (GHC.HsSpliceE (GHC.HsSplice _ expr))) toks = allocExpr expr toks
+#else
+allocExpr (GHC.L _l (GHC.HsSpliceE _ (GHC.HsSplice _ expr))) toks = allocExpr expr toks
+#endif
 
 allocExpr e@(GHC.L _ (GHC.HsQuasiQuoteE _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
 
@@ -1195,10 +1289,19 @@ allocCmdTop :: GHC.LHsCmdTop GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosT
 allocCmdTop (GHC.L l (GHC.HsCmdTop cmd _ _ _)) toks = r
   where
     (sb,toksCmd,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
+#if __GLASGOW_HASKELL__ < 706
     layoutExpr = allocExpr cmd toksCmd
+#else
+    layoutExpr = allocCmd cmd toksCmd
+#endif
     r = [makeGroup $ strip $ (makeLeafFromToks sb)
                    ++ layoutExpr
                    ++ (makeLeafFromToks sa)]
+
+-- ---------------------------------------------------------------------
+
+allocCmd :: GHC.LHsCmd GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocCmd c toks = error $ "allocCmd undefined"
 
 -- ---------------------------------------------------------------------
 
@@ -1317,7 +1420,12 @@ endPosForList xs = end
 -- ---------------------------------------------------------------------
 
 allocBind :: GHC.LHsBind GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+#if __GLASGOW_HASKELL__ > 706
+allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MG matches _) _ _ _)) toks = r
+#endif
+#if __GLASGOW_HASKELL__ < 708
 allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MatchGroup matches _) _ _ _)) toks = r
+#endif
   where
     (nameLayout,toks1) = ((makeLeafFromToks s1)++[makeLeaf (g2s ln) NoChange nameToks],toks')
       where
@@ -1630,17 +1738,23 @@ allocInstDecl (GHC.L l (GHC.ClsInstD polyTy@(GHC.L lt _) binds sigs famInsts)) t
     bindList = GHC.bagToList binds
     bindMix = makeMixedListEntry bindList (shim allocBind)
     sigMix  = makeMixedListEntry sigs (shim allocSig)
+#if __GLASGOW_HASKELL__ > 706
     famMix  = makeMixedListEntry famInsts (shim allocLFamInstDecl)
-
+#endif
+#if __GLASGOW_HASKELL__ == 706
+    famMix  = makeMixedListEntry famInsts (shim allocLFamInstDecl)
+#endif
     bindsLayout' = allocMixedList (bindMix++sigMix++famMix) toks2
     r = strip $ (makeLeafFromToks s1) ++ (makeLeafFromToks s2)
              ++ polytLayout ++ bindsLayout'
              ++ (makeLeafFromToks toks')
+#if __GLASGOW_HASKELL__ < 708
 allocInstDecl (GHC.L l (GHC.FamInstD decl)) toks = r
   where
     (s1,toks1,s2) = splitToksIncComments (ghcSpanStartEnd l) toks
     declLayout = allocLFamInstDecl (GHC.L l decl) toks1
     r = strip $(makeLeafFromToks s1) ++ declLayout ++ (makeLeafFromToks s2)
+#endif
 #else
 -- InstDecl (LHsType name) (LHsBinds name) [LSig name] [LTyClDecl name]
 allocInstDecl (GHC.L l (GHC.InstDecl (GHC.L ln _) binds sigs tycldecls)) toks = r
@@ -1660,8 +1774,13 @@ allocInstDecl (GHC.L l (GHC.InstDecl (GHC.L ln _) binds sigs tycldecls)) toks = 
 #endif
 
 -- ---------------------------------------------------------------------
-
-#if __GLASGOW_HASKELL__ > 704
+#if __GLASGOW_HASKELL__ > 706
+allocLFamInstDecl :: GHC.LTyFamInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocLFamInstDecl (GHC.L l (GHC.TyFamInstDecl eqn _fvs)) toks = r
+  where
+    r = error $ "allocLFamInstDecl undefined"
+#endif
+#if __GLASGOW_HASKELL__ == 706
 allocLFamInstDecl :: GHC.LFamInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 allocLFamInstDecl (GHC.L l (GHC.FamInstDecl n@(GHC.L ln _) (GHC.HsWB typs _ _) defn _fvs)) toks = r
   where
@@ -1745,7 +1864,7 @@ allocTyVarBndr (GHC.L l (GHC.KindedTyVar _n k@(GHC.L lk _) _)) toks = r
 
 -- ---------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ > 704
+#if __GLASGOW_HASKELL__ == 706
 allocHsTyDefn :: GHC.HsTyDefn GHC.RdrName -> [GhcPosToken] -> ([LayoutTree GhcPosToken],[GhcPosToken])
 allocHsTyDefn (GHC.TySynonym typ@(GHC.L l _)) toks = (r,toks')
   where
@@ -2027,7 +2146,7 @@ tokenSrcSpan (GHC.L l _,_)     = l
 
 -- |Show a GHC API structure
 showGhc :: (GHC.Outputable a) => a -> String
-#if __GLASGOW_HASKELL__ > 704
+#if __GLASGOW_HASKELL__ == 706
 showGhc x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
 #else
 showGhc x = GHC.showSDoc                     $ GHC.ppr x
