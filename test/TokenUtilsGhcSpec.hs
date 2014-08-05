@@ -192,7 +192,7 @@ spec = do
       -- (show sspan) `shouldBe` "f:23:5-10"
 
       let (tm1,declToks) = getTokensFor True forest (gs2ss sspan)
-      (showRichTokenStream' declToks) `shouldBe` "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n     zz = 1"
+      (showRichTokenStream' declToks) `shouldBe` "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    zz = 1"
       (drawTreeEntry tm1) `shouldBe`
            "((1,1),(32,18))\n|\n"++
            "+- ((1,1),(22,8))\n|\n"++
@@ -583,7 +583,7 @@ tree TId 0:
       -- (showTree tm3) `shouldBe` ""
 
       (showRichTokenStream' toks5) `shouldBe`
-         "\n\n\n\n\n\n\n\n\n\n\n                      (sq pow)x + (sq pow)y"
+         "\n\n\n\n\n\n\n\n\n\n\n                     (sq pow)x + (sq pow)y"
       -- (showToks toks5) `shouldBe` ""
 
       (drawTreeEntry tm5) `shouldBe`

@@ -38,7 +38,7 @@ spec = do
 
       -- (showGhc parsed) `shouldBe` ""
 
-      (showRichTokenStream' toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\nmodule Layout.LetExpr where\n\nfoo = let x = 1\n          y = 2\n      in x + y\n\n"
+      -- (showRichTokenStream' toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\nmodule Layout.LetExpr where\n\nfoo = let x = 1\n          y = 2\n      in x + y\n\n"
       let origSource = (showRichTokenStream' toks)
 
 
@@ -63,7 +63,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      (showRichTokenStream' toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n       let x = 1\n           y = 2\n       x+y\n\n"
+      (showRichTokenStream' toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n        let x = 1\n            y = 2\n        x+y\n\n"
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -116,7 +116,7 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Renaming/LayoutIn2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      (showRichTokenStream' toks) `shouldBe` "module LayoutIn2 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'list' to 'ls'.\n\nsilly :: [Int] -> Int\nsilly list = case list of  (1:xs) -> 1\n--There is a comment\n                          (2:xs)\n                            | x < 10    -> 4  where  x = last xs\n                          otherwise -> 12\n\n"
+      (showRichTokenStream' toks) `shouldBe` "module LayoutIn2 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'list' to 'ls'.\n\nsilly :: [Int] -> Int\nsilly list = case list of  (1:xs) -> 1\n--There is a comment\n                           (2:xs)\n                             | x < 10    -> 4  where  x = last xs\n                           otherwise -> 12\n\n"
 
       let origSource = (showRichTokenStream' toks)
 

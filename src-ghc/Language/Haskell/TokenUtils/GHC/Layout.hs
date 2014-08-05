@@ -1328,7 +1328,7 @@ allocCmdTop :: GHC.LHsCmdTop GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosT
 allocCmdTop (GHC.L l (GHC.HsCmdTop cmd _ _ _)) toks = r
   where
     (sb,toksCmd,sa) = splitToksIncComments (ghcSpanStartEnd l) toks
-#if __GLASGOW_HASKELL__ < 706
+#if __GLASGOW_HASKELL__ < 708
     layoutExpr = allocExpr cmd toksCmd
 #else
     layoutExpr = allocCmd cmd toksCmd
