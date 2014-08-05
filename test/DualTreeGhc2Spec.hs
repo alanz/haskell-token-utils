@@ -31,8 +31,8 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Layout/LetExpr.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      (GHC.showRichTokenStream toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\n module Layout.LetExpr where\n\n foo = let x = 1\n           y = 2\n       in x + y\n\n "
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      (showRichTokenStream' toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\n module Layout.LetExpr where\n\n foo = let x = 1\n           y = 2\n       in x + y\n\n "
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -54,7 +54,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      (GHC.showRichTokenStream $ bypassGHCBug7351 toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n        let x = 1\n            y = 2\n        x+y\n\n"
+      (showRichTokenStream' $ bypassGHCBug7351 toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n        let x = 1\n            y = 2\n        x+y\n\n"
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -107,9 +107,9 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Renaming/LayoutIn2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      (GHC.showRichTokenStream $ bypassGHCBug7351 toks) `shouldBe` "module LayoutIn2 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'list' to 'ls'.\n\nsilly :: [Int] -> Int\nsilly list = case list of  (1:xs) -> 1\n--There is a comment\n                           (2:xs)\n                             | x < 10    -> 4  where  x = last xs\n                           otherwise -> 12\n\n"
+      (showRichTokenStream' $ bypassGHCBug7351 toks) `shouldBe` "module LayoutIn2 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'list' to 'ls'.\n\nsilly :: [Int] -> Int\nsilly list = case list of  (1:xs) -> 1\n--There is a comment\n                           (2:xs)\n                             | x < 10    -> 4  where  x = last xs\n                           otherwise -> 12\n\n"
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -129,7 +129,7 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/LiftToToplevel/LetIn1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -153,7 +153,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -176,7 +176,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -252,7 +252,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -277,7 +277,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -301,7 +301,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -323,7 +323,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -347,7 +347,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -399,7 +399,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -423,7 +423,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -442,7 +442,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/Lift.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -462,7 +462,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/MoveDef/Demote.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -481,7 +481,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/FromMd1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -503,7 +503,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/FromMd1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -524,7 +524,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/Where2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -545,7 +545,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/TypeUtils/LayoutLet2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -563,7 +563,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Renaming/LayoutIn1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       -- (drawTreeWithToks layout) `shouldBe` ""
@@ -583,7 +583,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Renaming/LayoutIn1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -603,7 +603,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/Lift.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -622,7 +622,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Demote/D2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -641,7 +641,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/AddParams1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -660,7 +660,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Renaming/D5.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -679,7 +679,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/D5Simple.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -697,7 +697,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/TypeUtils/LayoutLet2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -716,7 +716,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Renaming/LayoutIn3.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -735,8 +735,8 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/TypeUtils/Empty.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      (GHC.showRichTokenStream toks) `shouldBe` "module Empty where\n\n "
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      (showRichTokenStream' toks) `shouldBe` "module Empty where\n\n "
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -754,7 +754,7 @@ spec = do
       (t,toks) <-  parsedFileGhc "./test/testdata/Layout/Do1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -773,7 +773,7 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Layout/Move1.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -797,7 +797,7 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Layout/HsDo.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -824,7 +824,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -851,7 +851,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -878,7 +878,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -905,7 +905,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -934,7 +934,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -958,7 +958,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -987,7 +987,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -1014,7 +1014,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -1042,7 +1042,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -1070,7 +1070,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
@@ -1098,7 +1098,7 @@ spec = do
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
 
-      let origSource = (GHC.showRichTokenStream $ bypassGHCBug7351 toks)
+      let origSource = (showRichTokenStream' $ bypassGHCBug7351 toks)
 
       let layout = allocTokens parsed toks
       (show $ retrieveTokens layout) `shouldBe` (show toks)
