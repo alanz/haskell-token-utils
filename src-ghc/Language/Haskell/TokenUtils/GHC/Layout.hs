@@ -33,6 +33,8 @@ module Language.Haskell.TokenUtils.GHC.Layout (
   , GhcPosToken
 
   -- * For testing
+  , showGhc
+  , showRichTokenStream'
   ) where
 
 import qualified Bag           as GHC
@@ -1421,7 +1423,7 @@ endPosForList xs = end
 
 allocBind :: GHC.LHsBind GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 #if __GLASGOW_HASKELL__ > 706
-allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MG matches _) _ _ _)) toks = r
+allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MG matches _ _ _) _ _ _)) toks = r
 #endif
 #if __GLASGOW_HASKELL__ < 708
 allocBind (GHC.L l (GHC.FunBind (GHC.L ln _) _ (GHC.MatchGroup matches _) _ _ _)) toks = r
@@ -1681,7 +1683,11 @@ allocType (GHC.L l (GHC.HsQuasiQuoteTy (GHC.HsQuasiQuote _n _lq _)) ) toks = r
     r = [makeGroup $ strip $ (makeLeafFromToks s1)
              ++ quoteLayout
              ++ (makeLeafFromToks toks') ]
+#if __GLASGOW_HASKELL__ > 706
+allocType (GHC.L l (GHC.HsSpliceTy (GHC.HsSplice _n e@(GHC.L le _)) _typ) ) toks = r
+#else
 allocType (GHC.L l (GHC.HsSpliceTy (GHC.HsSplice _n e@(GHC.L le _)) _fv _k) ) toks = r
+#endif
   where
     (s1,toks1,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     (s2,eToks,toks2) = splitToksIncComments (ghcSpanStartEnd le) toks1
@@ -1727,7 +1733,19 @@ allocType (GHC.L l (GHC.HsWrapTy _ typ) ) toks = allocType (GHC.L l typ) toks
 
 allocInstDecl :: GHC.LInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 #if __GLASGOW_HASKELL__ > 704
+#if __GLASGOW_HASKELL__ > 706
+allocInstDecl (GHC.L l (GHC.ClsInstD (GHC.ClsInstDecl polyTy@(GHC.L lt _) binds sigs famInsts dataFamInsts))) toks = r
+{-
+ClsInstDecl
+    cid_poly_ty :: LHsType name
+    cid_binds :: LHsBinds name
+    cid_sigs :: [LSig name]
+    cid_tyfam_insts :: [LTyFamInstDecl name]
+    cid_datafam_insts :: [LDataFamInstDecl name]
+-}
+#else
 allocInstDecl (GHC.L l (GHC.ClsInstD polyTy@(GHC.L lt _) binds sigs famInsts)) toks = r
+#endif
   where
     (s1,toks1,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     (s2,polytToks,toks2) = splitToksIncComments (ghcSpanStartEnd lt) toks1
@@ -1740,6 +1758,7 @@ allocInstDecl (GHC.L l (GHC.ClsInstD polyTy@(GHC.L lt _) binds sigs famInsts)) t
     sigMix  = makeMixedListEntry sigs (shim allocSig)
 #if __GLASGOW_HASKELL__ > 706
     famMix  = makeMixedListEntry famInsts (shim allocLFamInstDecl)
+    dataFamMix  = makeMixedListEntry dataFamInsts (shim allocLDataFamInstDecl)
 #endif
 #if __GLASGOW_HASKELL__ == 706
     famMix  = makeMixedListEntry famInsts (shim allocLFamInstDecl)
@@ -1779,6 +1798,20 @@ allocLFamInstDecl :: GHC.LTyFamInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutT
 allocLFamInstDecl (GHC.L l (GHC.TyFamInstDecl eqn _fvs)) toks = r
   where
     r = error $ "allocLFamInstDecl undefined"
+
+allocLDataFamInstDecl :: GHC.LDataFamInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocLDataFamInstDecl (GHC.L l (GHC.DataFamInstDecl ln pats defn _fvs)) toks = r
+  where
+    r = error $ "allocLDataFamInstDecl undefined"
+{-
+DataFamInstDecl	 
+    dfid_tycon :: Located name
+    dfid_pats :: HsWithBndrs [LHsType name]
+
+      Type patterns (with kind and type bndrs) See Note [Family instance declaration binders]
+    dfid_defn :: HsDataDefn name
+    dfid_fvs :: NameSet
+-}
 #endif
 #if __GLASGOW_HASKELL__ == 706
 allocLFamInstDecl :: GHC.LFamInstDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
@@ -2146,10 +2179,14 @@ tokenSrcSpan (GHC.L l _,_)     = l
 
 -- |Show a GHC API structure
 showGhc :: (GHC.Outputable a) => a -> String
-#if __GLASGOW_HASKELL__ == 706
+#if __GLASGOW_HASKELL__ > 706
+showGhc x = GHC.showPpr GHC.unsafeGlobalDynFlags x
+#else
+#if __GLASGOW_HASKELL__ > 704
 showGhc x = GHC.showSDoc GHC.tracingDynFlags $ GHC.ppr x
 #else
 showGhc x = GHC.showSDoc                     $ GHC.ppr x
+#endif
 #endif
 
 ghcIsEmpty :: GhcPosToken -> Bool
@@ -2456,7 +2493,11 @@ ghcAllocTokens' parsed toks = r
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
 
+#if __GLASGOW_HASKELL__ < 708
     ss4 = addLayout'' parsed' ss3
+#else
+    ss4 = ss3
+#endif
 
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo=" ++ drawTreeCompact (head ss)
@@ -2772,6 +2813,7 @@ gmapAccumQ f = gmapAccumQr (:) [] f
 
 type TreeZipper = Z.TreePos Z.Full (Entry GhcPosToken)
 
+#if __GLASGOW_HASKELL__ < 708
 -- |Traverse the parsed source looking for points requiring layout,
 -- and insert them into the LayoutTree at the appropriate point
 addLayout'' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
@@ -2961,10 +3003,11 @@ addLayout'' parsed tree = Z.toTree zz
       return lm
     lmatch x = return x -- error $ "lmatch hit" ++ (SYB.showData SYB.Parser 0 x)
 -}
-
+#endif
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 708
 -- |Traverse the parsed source looking for points requiring layout,
 -- and insert them into the LayoutTree at the appropriate point
 -- addLayout' :: GHC.ParsedSource -> LayoutTree GhcPosToken -> LayoutTree GhcPosToken
@@ -3134,6 +3177,7 @@ addLayout parsed tree = r
         -- tt = trace ("lmatch:(start,end)=" ++ show (start,end,middle)) undefined
 
     lmatch _ = []
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -3192,6 +3236,37 @@ everywhereMStaged' stage f x
   | otherwise = do x' <- f x
                    gmapM (everywhereMStaged' stage f) x'
 
+-- ---------------------------------------------------------------------
+
+-- The showRichTokenStream function had an error advancing to the
+-- next line prior to GHC 7.8.x. This provides a version consistent
+-- with the GHC 7.8.3 one, for repeatability of tests.
+
+-- | Take a rich token stream such as produced from 'getRichTokenStream' and
+-- return source code almost identical to the original code (except for
+-- insignificant whitespace.)
+showRichTokenStream' :: [(GHC.Located GHC.Token, String)] -> String
+showRichTokenStream' ts = go startLoc ts ""
+    where sourceFile = getFile $ map (GHC.getLoc . fst) ts
+          getFile [] = GHC.panic "showRichTokenStream: No source file found"
+          getFile (GHC.UnhelpfulSpan _ : xs) = getFile xs
+          getFile (GHC.RealSrcSpan s : _) = GHC.srcSpanFile s
+          startLoc = GHC.mkRealSrcLoc sourceFile 1 1
+          go _ [] = id
+          go loc ((GHC.L span _, str):ts)
+              = case span of
+                GHC.UnhelpfulSpan _ -> go loc ts
+                GHC.RealSrcSpan s
+                 | locLine == tokLine -> ((replicate (tokCol - locCol) ' ') ++)
+                                       . (str ++)
+                                       . go tokEnd ts
+                 | otherwise -> ((replicate (tokLine - locLine) '\n') ++)
+                               . ((replicate (tokCol - 1) ' ') ++)
+                              . (str ++)
+                              . go tokEnd ts
+                  where (locLine, locCol) = (GHC.srcLocLine loc, GHC.srcLocCol loc)
+                        (tokLine, tokCol) = (GHC.srcSpanStartLine s, GHC.srcSpanStartCol s)
+                        tokEnd = GHC.realSrcSpanEnd s
 
 
 -- EOF
