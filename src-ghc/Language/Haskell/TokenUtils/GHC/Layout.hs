@@ -385,6 +385,9 @@ allocDecls decls toks = r
     doOne acc d@(GHC.L _ (GHC.SpliceD     _)) = allocSpliceD     acc d
     doOne acc d@(GHC.L _ (GHC.DocD        _)) = allocDocD        acc d
     doOne acc d@(GHC.L _ (GHC.QuasiQuoteD _)) = allocQuasiQuoteD acc d
+#if __GLASGOW_HASKELL__ > 706
+    doOne acc d@(GHC.L _ (GHC.RoleAnnotD _)) = allocRoleAnnotD acc d
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -546,6 +549,13 @@ allocQuasiQuoteD _ x = error $ "allocQuasiQuoteD:unexpected value:" ++ showGhc x
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ > 706
+allocRoleAnnotD :: ([LayoutTree GhcPosToken],[GhcPosToken]) -> GHC.LHsDecl GHC.RdrName -> ([LayoutTree GhcPosToken],[GhcPosToken])
+allocRoleAnnotD _ x = error $ "allocRoleAnnotD:unexpected value:" ++ showGhc x
+#endif
+
+-- ---------------------------------------------------------------------
+
 allocLTyClDecl :: GHC.LTyClDecl GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 allocLTyClDecl (GHC.L l (GHC.ForeignType ln _)) toks = r
   where
@@ -673,6 +683,21 @@ allocLTyClDecl (GHC.L l (GHC.ClassDecl (GHC.L lc ctx) n@(GHC.L ln _) vars fds si
              ++ fdsLayout ++ bindsLayout
              ++ (makeLeafFromToks toks')
         ]
+
+#if __GLASGOW_HASKELL__ > 706
+allocLTyClDecl (GHC.L l (GHC.FamDecl _)) toks = r
+  where
+    r = error $ "allocLTyClDecl.FamDecl undefined"
+allocLTyClDecl (GHC.L l (GHC.SynDecl _ _ _ _)) toks = r
+  where
+    r = error $ "allocLTyClDecl.SynDecl undefined"
+allocLTyClDecl (GHC.L l (GHC.DataDecl _ _ _ _)) toks = r
+  where
+    r = error $ "allocLTyClDecl.DataDecl undefined"
+
+#endif
+
+-- ---------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ > 706
 allocLFamilyDecl (GHC.L l (GHC.FamilyDecl _info ln tyvars mkindsig)) toks = r
@@ -810,6 +835,8 @@ allocRhs (GHC.L l (GHC.GRHS stmts expr)) toksIn = r
 allocStmt :: GHC.LStmt GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
 #else
 -- allocStmt :: GHC.LStmt GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocStmt :: (GHC.LStmt GHC.RdrName (GHC.LHsExpr GHC.RdrName)) -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+-- type LStmt id body = Located (StmtLR id id body)
 #endif
 allocStmt (GHC.L _ (GHC.LastStmt expr _)) toks = allocExpr expr toks
 allocStmt (GHC.L _ (GHC.BindStmt pat@(GHC.L lp _) expr _ _)) toks = r
@@ -838,6 +865,7 @@ allocStmt (GHC.L l (GHC.ParStmt blocks _ _ _)) toks = r
     r = [makeGroup $ strip $ (makeLeafFromToks s1) ++ blocksLayout
               ++ (makeLeafFromToks toks2)
               ++ (makeLeafFromToks toks')]
+allocStmt _ _ = error "allocStmt"
 
     allocParStmtBlock :: ([LayoutTree GhcPosToken],[GhcPosToken])
          -> ([GHC.LStmt GHC.RdrName],[GHC.RdrName]) -> ([LayoutTree GhcPosToken],[GhcPosToken])
@@ -884,18 +912,13 @@ allocStmt (GHC.L l (GHC.RecStmt stmts _ _ _ _ _ _ _ _))  toks = r
                   ++ (makeLeafFromToks toks1)
                   ++ (makeLeafFromToks sa)
         ]
-{-
-RecStmt
-  recS_stmts :: [LStmtLR idL idR]
-  recS_later_ids :: [idR]
-  recS_rec_ids :: [idR]
-  recS_bind_fn :: SyntaxExpr idR
-  recS_ret_fn :: SyntaxExpr idR
-  recS_mfix_fn :: SyntaxExpr idR
-  recS_later_rets :: [PostTcExpr]
-  recS_rec_rets :: [PostTcExpr]
-  recS_ret_ty :: PostTcType
--}
+
+#if __GLASGOW_HASKELL__ > 706
+allocStmt (GHC.L l (GHC.BodyStmt _ _ _ _)) toks = r
+  where
+    r = error $ "allocStmt.BodyStmt undefined"
+#endif
+
 -- ---------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ > 704
@@ -1056,6 +1079,9 @@ allocExpr e@(GHC.L _ (GHC.HsDo GHC.ArrowExpr _ _)) _ = error $ "allocExpr undefi
 allocExpr e@(GHC.L _ (GHC.HsDo (GHC.PatGuard _) _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
 allocExpr e@(GHC.L _ (GHC.HsDo (GHC.ParStmtCtxt _) _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
 allocExpr e@(GHC.L _ (GHC.HsDo (GHC.TransStmtCtxt _) _ _)) _ = error $ "allocExpr undefined for " ++ (SYB.showData SYB.Parser 0  e)
+#if __GLASGOW_HASKELL__ > 706
+allocExpr e@(GHC.L _ (GHC.HsDo GHC.GhciStmtCtxt _ _)) toks = allocDoExpr e toks
+#endif
 
 #if __GLASGOW_HASKELL__ < 708
 allocExpr (GHC.L l (GHC.ExplicitList _ exprs)) toks = r
@@ -1134,6 +1160,9 @@ allocExpr (GHC.L l (GHC.HsBracket bracket)) toks = r
       GHC.DecBrG g -> error $ "allocExpr.DecBrG undefined for " ++ (SYB.showData SYB.Parser 0 g)
       GHC.TypBr typ -> allocType typ toksBrack
       GHC.VarBr _ _ -> makeLeafFromToks toksBrack
+#if __GLASGOW_HASKELL__ > 706
+      GHC.TExpBr ex -> allocExpr ex toksBrack
+#endif
     r = [makeGroup $ strip $ (makeLeafFromToks sb)
                    ++ layoutBrack
                    ++ (makeLeafFromToks sa)]
@@ -1241,6 +1270,14 @@ allocExpr (GHC.L l (GHC.EViewPat e1@(GHC.L l1 _) e2@(GHC.L l2 _))) toks = r
 allocExpr (GHC.L _ (GHC.ELazyPat e)) toks = allocExpr e toks
 allocExpr (GHC.L _ (GHC.HsType typ)) toks = allocType typ toks
 allocExpr e@(GHC.L _ (GHC.HsWrap _ _)) toks = allocExpr e toks
+#if __GLASGOW_HASKELL__ > 706
+allocExpr (GHC.L _ (GHC.HsLamCase _ _)) toks = error $ "allocExpr.HsLamCase undefined"
+allocExpr (GHC.L _ (GHC.HsRnBracketOut _ _)) toks = error $ "allocExpr.HsLamCase undefined"
+allocExpr (GHC.L _ (GHC.HsTcBracketOut _ _)) toks = error $ "allocExpr.HsLamCase undefined"
+allocExpr (GHC.L _ (GHC.HsUnboundVar _)) toks = error $ "allocExpr.HsLamCase undefined"
+#endif
+
+
 
 -- -------------------------------------
 
@@ -1478,7 +1515,24 @@ allocBind (GHC.L l (GHC.AbsBinds _tvs _vars _exps _ev binds)) toks = r
               ++ (makeLeafFromToks sa)
              )
          ]
-
+#if __GLASGOW_HASKELL__ > 706
+allocBind (GHC.L l (GHC.PatSynBind ln _fvs args def dir)) toks = r
+{-
+PatSynBind	 
+  patsyn_id :: Located idL
+    Name of the pattern synonym
+  bind_fvs :: NameSet
+    After the renamer, this contains the locally-bound free variables of this defn. See Note [Bind free vars]
+  patsyn_args :: HsPatSynDetails (Located idR)
+    Formal parameter names
+  patsyn_def :: LPat idR
+    Right-hand side
+  patsyn_dir :: HsPatSynDir idR
+    Directionality
+-}
+  where
+    r = error $ "allocBind PatSynBind undefined"
+#endif
 -- ---------------------------------------------------------------------
 
 allocSig :: GHC.LSig GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
@@ -1548,6 +1602,25 @@ allocSig (GHC.L l (GHC.SpecInstSig t)) toks = r
     (s1,sigToks,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
     r = [makeGroup $ (strip $ (makeLeafFromToks s1) ++ allocType t sigToks
               ++ (makeLeafFromToks toks')) ]
+#if __GLASGOW_HASKELL__ > 706
+allocSig (GHC.L l (GHC.PatSynSig ln dets typ ctx1 ctx2)) toks = r
+{-
+PatSynSig (Located name) (HsPatSynDetails (LHsType name)) (LHsType name) (LHsContext name) (LHsContext name)	
+-- A pattern synonym type signature @pattern (Eq b) => P a b :: (Num a) => T a
+-}
+  where
+    r = error $ "allocSig PatSynSig undefined"
+
+allocSig (GHC.L l (GHC.MinimalSig formula)) toks = r
+{-
+MinimalSig (BooleanFormula (Located name))
+-- A minimal complete definition pragma
+-- {-# MINIMAL a | (b, c | (d | e)) #-}
+-}
+  where
+    r = error $ "allocSig MinimalSig undefined"
+
+#endif
 
 -- ---------------------------------------------------------------------
 
@@ -1791,6 +1864,27 @@ allocInstDecl (GHC.L l (GHC.InstDecl (GHC.L ln _) binds sigs tycldecls)) toks = 
              ++ bindsLayout'
              ++ (makeLeafFromToks toks')
 #endif
+#if __GLASGOW_HASKELL__ > 706
+allocInstDecl (GHC.L l (GHC.DataFamInstD (GHC.DataFamInstDecl ln pats defn _fvs))) toks = r
+{-
+DataFamInstDecl
+  dfid_tycon :: Located name
+  dfid_pats :: HsWithBndrs [LHsType name]
+    Type patterns (with kind and type bndrs) See Note [Family instance declaration binders]
+  dfid_defn :: HsDataDefn name
+  dfid_fvs :: NameSet
+-}
+  where
+    r = error $ "allocInstDecl DataFamInstD undefined)"
+allocInstDecl (GHC.L l (GHC.TyFamInstD (GHC.TyFamInstDecl eqn _fvs))) toks = r
+{-
+TyFamInstDecl
+  tfid_eqn :: LTyFamInstEqn name
+  tfid_fvs :: NameSet
+-}
+  where
+    r = error $ "allocInstDecl TyFamInstD undefined)"
+#endif
 
 -- ---------------------------------------------------------------------
 #if __GLASGOW_HASKELL__ > 706
@@ -1804,7 +1898,7 @@ allocLDataFamInstDecl (GHC.L l (GHC.DataFamInstDecl ln pats defn _fvs)) toks = r
   where
     r = error $ "allocLDataFamInstDecl undefined"
 {-
-DataFamInstDecl	 
+DataFamInstDecl
     dfid_tycon :: Located name
     dfid_pats :: HsWithBndrs [LHsType name]
 
