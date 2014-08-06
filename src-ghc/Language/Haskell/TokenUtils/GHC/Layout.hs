@@ -865,7 +865,6 @@ allocStmt (GHC.L l (GHC.ParStmt blocks _ _ _)) toks = r
     r = [makeGroup $ strip $ (makeLeafFromToks s1) ++ blocksLayout
               ++ (makeLeafFromToks toks2)
               ++ (makeLeafFromToks toks')]
-allocStmt _ _ = error "allocStmt"
 
     allocParStmtBlock :: ([LayoutTree GhcPosToken],[GhcPosToken])
          -> ([GHC.LStmt GHC.RdrName],[GHC.RdrName]) -> ([LayoutTree GhcPosToken],[GhcPosToken])
@@ -918,6 +917,7 @@ allocStmt (GHC.L l (GHC.BodyStmt _ _ _ _)) toks = r
   where
     r = error $ "allocStmt.BodyStmt undefined"
 #endif
+-- allocStmt _ _ = error "allocStmt"
 
 -- ---------------------------------------------------------------------
 
