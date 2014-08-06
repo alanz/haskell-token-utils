@@ -691,9 +691,91 @@ allocLTyClDecl (GHC.L l (GHC.FamDecl _)) toks = r
 allocLTyClDecl (GHC.L l (GHC.SynDecl _ _ _ _)) toks = r
   where
     r = error $ "allocLTyClDecl.SynDecl undefined"
-allocLTyClDecl (GHC.L l (GHC.DataDecl _ _ _ _)) toks = r
+allocLTyClDecl (GHC.L l (GHC.DataDecl n@(GHC.L ln _) tyvars defn _fvs)) toks = r
+{-
+DataDecl
+  tcdLName :: Located name
+    Type constructor
+  tcdTyVars :: LHsTyVarBndrs name
+    Type variables; for an associated type these include outer binders
+  tcdDataDefn :: HsDataDefn name
+  tcdFVs :: NameSet
+-}
   where
-    r = error $ "allocLTyClDecl.DataDecl undefined"
+    (s1,clToks,  toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,nToks,   toks1) = splitToksIncComments (ghcSpanStartEnd ln) clToks
+
+    nLayout   = allocLocated n nToks
+    (varsLayout, toks2) = allocTyVarBndrs tyvars toks1
+    defnLayout = allocHsDataDefn defn toks2
+
+    r = [makeGroup $ strip $
+            (makeLeafFromToks s1)
+         ++ (makeLeafFromToks s2)
+         ++ nLayout ++ varsLayout
+         ++ defnLayout
+         ++ (makeLeafFromToks toks')
+        ]
+#endif
+
+-- ---------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ > 706
+allocHsDataDefn :: (GHC.HsDataDefn GHC.RdrName) -> [GhcPosToken] -> [LayoutTree GhcPosToken]
+allocHsDataDefn (GHC.HsDataDefn _ (GHC.L lc ctx) _mtyp mksig cons mderivs) toks = r
+  where
+    (s1,ctxToks,toks1) = splitToksIncComments (ghcSpanStartEnd lc) toks
+    ctxLayout = allocList ctx ctxToks allocType
+    (ksigLayout,toks2) = case mksig of
+      Nothing -> ([],toks1)
+      Just kk@(GHC.L lk _) -> (kl,toks2')
+        where
+          (s2k,toksK,toks2') = splitToksIncComments (ghcSpanStartEnd lk) toks1
+          kl = strip $ (makeLeafFromToks s2k) ++ allocType kk toksK
+    (s2,conToks,toks3) = splitToksForList cons toks2
+    consLayout = allocList cons conToks allocConDecl
+    derivsLayout = case mderivs of
+      Nothing -> makeLeafFromToks toks3
+      Just derivs -> allocList derivs toks3 allocType
+    r = [makeGroup $ strip $
+             (makeLeafFromToks s1)
+          ++ ctxLayout
+          ++ ksigLayout
+          ++ (makeLeafFromToks s2)
+          ++ consLayout
+          ++ derivsLayout
+        ]
+{-
+HsDataDefn
+  Declares a data type or newtype, giving its constructors
+       data/newtype T a = constrs data/newtype instance T [a] = constrs
+
+  dd_ND :: NewOrData
+
+  dd_ctxt :: LHsContext name
+    Context
+
+  dd_cType :: Maybe CType
+
+  dd_kindSig :: Maybe (LHsKind name)
+    Optional kind signature.
+
+    (Just k) for a GADT-style data, or data instance decl, with explicit kind sig
+
+    Always Nothing for H98-syntax decls
+
+  dd_cons :: [LConDecl name]
+    Data constructors
+    For data T a = T1 | T2 a the LConDecls all have ResTyH98.
+    For data T a where { T1 :: T a } the LConDecls all have ResTyGADT.
+
+  dd_derivs :: Maybe [LHsType name]
+    Derivings; Nothing => not specified, Just [] => derive exactly what is asked
+    These "types" must be of form
+      forall ab. C ty1 ty2
+    Typically the foralls and ty args are empty, but they are non-empty for the
+    newtype-deriving case
+-}
 
 #endif
 
@@ -913,9 +995,9 @@ allocStmt (GHC.L l (GHC.RecStmt stmts _ _ _ _ _ _ _ _))  toks = r
         ]
 
 #if __GLASGOW_HASKELL__ > 706
-allocStmt (GHC.L l (GHC.BodyStmt _ _ _ _)) toks = r
-  where
-    r = error $ "allocStmt.BodyStmt undefined"
+allocStmt (GHC.L l (GHC.BodyStmt ex _ _ _)) toks = allocExpr ex toks
+-- BodyStmt body (SyntaxExpr idR) (SyntaxExpr idR) PostTcType
+-- body is (GHC.LHsExpr GHC.RdrName)
 #endif
 -- allocStmt _ _ = error "allocStmt"
 
