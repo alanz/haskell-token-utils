@@ -1252,7 +1252,7 @@ tree TId 0:
       let (Entry _ _ toks1) = Z.label z
       let (tokStartPos,tokEndPos) = forestSpanToSimpPos sspan
 
-      (showRichTokenStream' toks1) `shouldBe` "\n\n\n\n\n           then -- This is an odd result\n             bob x 1\n           else -- This is an even result\n             bob x 2\n\n bob x y = x + y\n\n "
+      (showRichTokenStream' toks1) `shouldBe` "\n\n\n\n\n          then -- This is an odd result\n            bob x 1\n          else -- This is an even result\n            bob x 2\n\nbob x y = x + y\n\n"
 
       let (startLoc,endLoc) = startEndLocIncComments' toks1 (tokStartPos,tokEndPos)
       -- let (startLoc,endLoc) = startEndLocIncCommentsDebug toks1 (tokStartPos,tokEndPos)
@@ -1282,12 +1282,12 @@ tree TId 0:
       let (_,elseToks) = getTokensFor False t4 (gs2ss s3)
 
       (showRichTokenStream' thenToks) `shouldBe`
-           "\n\n\n\n\n           "++
+           "\n\n\n\n\n          "++
            -- "-- This is an odd result\n             bob x 1"
-           "then -- This is an odd result\n             bob x 1"
+           "then -- This is an odd result\n            bob x 1"
       (showRichTokenStream' elseToks) `shouldBe`
-           "\n\n\n\n\n\n\n           "++
-           "else -- This is an even result\n             bob x 2"
+           "\n\n\n\n\n\n\n          "++
+           "else -- This is an even result\n            bob x 2"
 
   -- ---------------------------------------------
 
@@ -1465,7 +1465,7 @@ tree TId 0:
       -- (show $ retrieveTokensInterim $ getTreeFromCache ss2 tk3) `shouldBe` "" 
       -- (show $ getTreeFromCache ss2 tk3) `shouldBe` ""
       (showRichTokenStream' $ retrieveTokensInterim $ getTreeFromCache (gs2ss ss2) tk3) `shouldBe`
-                "\n\n\n\n\n\n\n\n\n\n\n\n addthree a b c=x+b+c"
+                "\n\n\n\n\n\n\n\n\n\n\n\naddthree a b c=x+b+c"
 
       -- putToksForSpan test/testdata/Demote/WhereIn6.hs:100000013:18:[((((0,1),(0,2)),ITvarid "y"),"y")]
       -- let ss3 = ss2gs ((100000013,18),(100000013,19))
@@ -1497,7 +1497,7 @@ tree TId 0:
                "((300000013,18),(300000013,19))\n"
 
       (showRichTokenStream' $ retrieveTokensInterim $ getTreeFromCache (gs2ss ss2) tk4) `shouldBe`
-                "\n\n\n\n\n\n\n\n\n\n\n\n addthree a b c=x+y+c"
+                "\n\n\n\n\n\n\n\n\n\n\n\naddthree a b c=x+y+c"
 
 
 
@@ -1838,14 +1838,14 @@ tree TId 0:
 
       let f2 = getTreeFromCache (gs2ss ss2) tk2
       (showRichTokenStream' $ retrieveTokensInterim f2) `shouldBe`
-               "\n\n\n\n\n\n\n\n\n\n\n\n addthree a b c=a+b+c"
+               "\n\n\n\n\n\n\n\n\n\n\n\naddthree a b c=a+b+c"
       let toks2 = basicTokenise "x"
       (show toks2) `shouldBe` "[((((0,1),(0,2)),ITvarid \"x\"),\"x\")]"
       --
 
       let z = openZipperToSpan (gs2f ss2) $ Z.fromTree f2
       let toksz = retrieveTokensInterim $ Z.tree z
-      (showRichTokenStream' toksz) `shouldBe` "\n\n\n\n\n\n\n\n\n\n\n\n addthree a b c=a+b+c"
+      (showRichTokenStream' toksz) `shouldBe` "\n\n\n\n\n\n\n\n\n\n\n\naddthree a b c=a+b+c"
       let (_begin,middle,_end) = splitToks (tokStartPos,tokEndPos) toksz
       -- (show begin) `shouldBe` ""
       (show middle) `shouldBe` "[((((13,16),(13,17)),ITvarid \"a\"),\"a\")]"
@@ -2205,7 +2205,7 @@ tree TId 0:
       (t,toks) <- parsedFileGhc "./test/testdata/Layout/Where.hs"
 
       (showRichTokenStream' toks) `shouldBe`
-            "module LiftToToplevel.Where where\n\n anotherFun 0 y = sq y\n      where sq x = x^2\n "
+            "module LiftToToplevel.Where where\n\nanotherFun 0 y = sq y\n     where sq x = x^2\n"
 
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
       let forest = allocTokens parsed toks
@@ -2502,7 +2502,7 @@ tree TId 0:
       let forest = mkTreeFromTokens toks
 
       let toksTree = retrieveTokensInterim forest
-      (showRichTokenStream' toksTree) `shouldBe` "module JustImports where\n\n import Data.Maybe\n "
+      (showRichTokenStream' toksTree) `shouldBe` "module JustImports where\n\nimport Data.Maybe\n"
       (show toksTree) `shouldBe`
            "[((((1,1),(1,7)),ITmodule),\"module\"),"++
            "((((1,8),(1,19)),ITconid \"JustImports\"),\"JustImports\"),"++
@@ -2885,7 +2885,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
   -- ---------------------------------------------
 
   describe "retrievePrevLineToks" $ do
-    it "Retrieves the previous non-empty line tokens from an open zipper" $ do
+    it "retrieves the previous non-empty line tokens from an open zipper" $ do
       (_t,toks) <- parsedFileGhc "./test/testdata/MoveDef/Demote.hs"
       let forest = mkTreeFromTokens toks
 
@@ -2920,7 +2920,7 @@ addParamsToParentAndLiftedDecl: liftedDecls done
 
       let toksPrev = retrievePrevLineToks z
 
-      (showRichTokenStream' (unReverseToks toksPrev)) `shouldBe` "module MoveDef.Demote where\n\n toplevel :: Integer -> Integer\n toplevel x = c * x"
+      (showRichTokenStream' (unReverseToks toksPrev)) `shouldBe` "module MoveDef.Demote where\n\ntoplevel :: Integer -> Integer\ntoplevel x = c * x"
 
   -- -------------------------------------------------------------------
 
