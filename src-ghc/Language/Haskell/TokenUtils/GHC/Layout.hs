@@ -688,9 +688,31 @@ allocLTyClDecl (GHC.L l (GHC.ClassDecl (GHC.L lc ctx) n@(GHC.L ln _) vars fds si
 allocLTyClDecl (GHC.L l (GHC.FamDecl _)) toks = r
   where
     r = error $ "allocLTyClDecl.FamDecl undefined"
-allocLTyClDecl (GHC.L l (GHC.SynDecl _ _ _ _)) toks = r
+allocLTyClDecl (GHC.L l (GHC.SynDecl n@(GHC.L ln _) tyvars typ _fvs)) toks = r
+{-
+SynDecl
+  tcdLName :: Located name
+    Type constructor
+  tcdTyVars :: LHsTyVarBndrs name
+    Type variables; for an associated type these include outer binders
+  tcdRhs :: LHsType name
+    RHS of type declaration
+  tcdFVs :: NameSet
+-}
   where
-    r = error $ "allocLTyClDecl.SynDecl undefined"
+    (s1,clToks,  toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,nToks,   toks1) = splitToksIncComments (ghcSpanStartEnd ln) clToks
+    nLayout   = allocLocated n nToks
+    (varsLayout, toks2) = allocTyVarBndrs tyvars toks1
+    typLayout = allocType typ toks2
+
+    r = [makeGroup $ strip $
+            (makeLeafFromToks s1)
+         ++ (makeLeafFromToks s2)
+         ++ nLayout ++ varsLayout
+         ++ typLayout
+         ++ (makeLeafFromToks toks')
+        ]
 allocLTyClDecl (GHC.L l (GHC.DataDecl n@(GHC.L ln _) tyvars defn _fvs)) toks = r
 {-
 DataDecl
@@ -873,6 +895,11 @@ allocMG (GHC.MG matches arg_typs res_type origin) toks = r
   where
     -- Match [LPat id] (Maybe (LHsType id)) (GRHSs id body)
     r = allocMatches matches toks
+#endif
+
+#if __GLASGOW_HASKELL__ > 706
+allocMGCmd _ _ = error $ "allocMGCmd undefined"
+-- (MatchGroup GHC.RdrName (LHsCmd GHC.RdrName)
 #endif
 
 -- ---------------------------------------------------------------------
@@ -1421,9 +1448,159 @@ allocCmdTop (GHC.L l (GHC.HsCmdTop cmd _ _ _)) toks = r
 
 -- ---------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ > 706
 allocCmd :: GHC.LHsCmd GHC.RdrName -> [GhcPosToken] -> [LayoutTree GhcPosToken]
-allocCmd c toks = error $ "allocCmd undefined"
+allocCmd (GHC.L l (GHC.HsCmdArrApp e1@(GHC.L l1 _) e2@(GHC.L l2 _) _typ _arrTyp _)) toks = r
+-- HsCmdArrApp (LHsExpr id) (LHsExpr id) PostTcType HsArrAppType Bool
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksE1,toks1) = splitToksIncComments (ghcSpanStartEnd l1) toksC
+    (s3,toksE2,toks2) = splitToksIncComments (ghcSpanStartEnd l2) toks1
 
+    expr1Layout = allocExpr e1 toksE1
+    expr2Layout = allocExpr e2 toksE2
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ expr1Layout
+                    ++ (makeLeafFromToks s3) ++ expr2Layout
+                    ++ (makeLeafFromToks toks2)
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdArrForm e@(GHC.L l1 _) _mf cmds)) toks = r
+-- HsCmdArrForm (LHsExpr id) (Maybe Fixity) [LHsCmdTop id]
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksE,toks1) = splitToksIncComments (ghcSpanStartEnd l1) toksC
+    (s3,toksCmd,toks2) = splitToksForList cmds toks1
+
+    exprLayout = allocExpr e toksE
+    cmdsLayout = allocList cmds toksCmd allocCmdTop
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ exprLayout
+                    ++ (makeLeafFromToks s3) ++ cmdsLayout
+                    ++ (makeLeafFromToks toks2)
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdApp c@(GHC.L l1 _) e@(GHC.L e1 _))) toks = r
+-- HsCmdApp (LHsCmd id) (LHsExpr id)
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksCmd,toks1) = splitToksIncComments (ghcSpanStartEnd l1) toksC
+    (s3,toksE,toks2) = splitToksIncComments (ghcSpanStartEnd e1) toks1
+
+    cmdLayout = allocCmd c toksCmd
+    exprLayout = allocExpr e toksE
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ cmdLayout
+                    ++ (makeLeafFromToks s3) ++ exprLayout
+                    ++ (makeLeafFromToks toks2)
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdLam mg)) toks = r
+-- HsCmdLam (MatchGroup id (LHsCmd id))
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+
+    mgLayout = allocMGCmd mg toksC
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ mgLayout
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdPar c)) toks = r
+-- HsCmdPar (LHsCmd id)
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+
+    cmdLayout = allocCmd c toksC
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ cmdLayout
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdCase e@(GHC.L l1 _) mg)) toks = r
+-- HsCmdCase (LHsExpr id) (MatchGroup id (LHsCmd id))
+  where
+    (s1,toksC,toks') = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksE,toksMG) = splitToksIncComments (ghcSpanStartEnd l1) toksC
+
+    exprLayout = allocExpr e toksE
+    mgLayout = allocMGCmd mg toksMG
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ exprLayout
+                    ++ mgLayout
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdIf _ms e@(GHC.L l1 _) c1@(GHC.L l2 _) c2@(GHC.L l3 _))) toks = r
+-- HsCmdIf (Maybe (SyntaxExpr id)) (LHsExpr id) (LHsCmd id) (LHsCmd id)
+  where
+    (s1,toksC,toks')  = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksE1,toks1) = splitToksIncComments (ghcSpanStartEnd l1) toksC
+    (s3,toksC1,toks2) = splitToksIncComments (ghcSpanStartEnd l2) toks1
+    (s4,toksC2,toks3) = splitToksIncComments (ghcSpanStartEnd l3) toks2
+
+    exprLayout = allocExpr e toksE1
+    cmd1Layout = allocCmd c1 toksC1
+    cmd2Layout = allocCmd c2 toksC2
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ exprLayout
+                    ++ (makeLeafFromToks s3) ++ cmd1Layout
+                    ++ (makeLeafFromToks s4) ++ cmd2Layout
+                    ++ (makeLeafFromToks toks3)
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdLet lbs c@(GHC.L l1 _))) toks = r
+-- HsCmdLet (HsLocalBinds id) (LHsCmd id)
+  where
+    (s1,toksC,toks')  = splitToksIncComments (ghcSpanStartEnd l) toks
+    (s2,toksLB,toks1) = splitToksIncComments (ghcSpanStartEnd lb) toksC
+    (s3,toksC1,toks2) = splitToksIncComments (ghcSpanStartEnd l1) toks1
+
+    -- make a SrcSpan from the start of the fragment to the start of the cmd
+    lb = GHC.mkSrcSpan (GHC.srcSpanStart l) (GHC.srcSpanStart l1)
+
+    lbLayout = allocLocalBinds lbs toksLB
+    cmd1Layout = allocCmd c toksC1
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ (makeLeafFromToks s2) ++ lbLayout
+                    ++ (makeLeafFromToks s3) ++ cmd1Layout
+                    ++ (makeLeafFromToks toks2)
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdDo cs _)) toks = r
+-- HsCmdDo [CmdLStmt id] PostTcType
+  where
+    (s1,toksC,toks')  = splitToksIncComments (ghcSpanStartEnd l) toks
+
+    csLayout = allocList cs toksC allocCmdLStmt
+
+    r = [makeGroup $ strip $ (makeLeafFromToks s1)
+                    ++ csLayout
+                    ++ (makeLeafFromToks toks')
+        ]
+
+allocCmd (GHC.L l (GHC.HsCmdCast _ c)) toks = allocCmd (GHC.L l c) toks
+#endif
+
+-- ---------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ > 706
+allocCmdLStmt _ _ = error $ "allocCmdLStmt undefined"
+-- type CmdLStmt id = LStmt id (LHsCmd id)
+-- type LStmt id body = Located (StmtLR id id body)
+#endif
 -- ---------------------------------------------------------------------
 
 allocHsRecordBinds :: GHC.HsRecordBinds GHC.RdrName -> [GhcPosToken] -> ([LayoutTree GhcPosToken],[GhcPosToken])
