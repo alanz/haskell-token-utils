@@ -37,6 +37,7 @@ spec = do
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
       -- (showGhc parsed) `shouldBe` ""
+      -- (SYB.showData SYB.Parser 0 parsed) `shouldBe` ""
 
       -- (showRichTokenStream' toks) `shouldBe` "-- A simple let expression, to ensure the layout is detected\n\nmodule Layout.LetExpr where\n\nfoo = let x = 1\n          y = 2\n      in x + y\n\n"
       let origSource = (showRichTokenStream' toks)

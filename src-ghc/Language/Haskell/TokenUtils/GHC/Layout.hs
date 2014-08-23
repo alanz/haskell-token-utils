@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# Language FlexibleContexts      #-}
 {-# Language MultiParamTypeClasses #-}
+{-# Language ScopedTypeVariables   #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 
 -- |
@@ -178,82 +179,6 @@ AST Items for layout keywords.
 --   hang d1 n d2 = sep [d1, nest n d2]
 --
 
-
--- ---------------------------------------------------------------------
-{-
-deriving instance Show Label
-
-instance Outputable (Tree Entry) where
-  ppr (Node label subs) = hang (text "Node") 2 (vcat [ppr label,ppr subs])
-
-instance Outputable Entry where
-  ppr (Entry sspan lay toks) = text "Entry" <+> ppr sspan <+> ppr lay <+> text (show toks)
-  ppr (Deleted sspan pg eg)     = text "Deleted" <+> ppr sspan <+> ppr pg <+> ppr eg
-
-instance Outputable Layout where
-  ppr (Above so p1 p2 oe)   = text "Above" <+> ppr so <+> ppr p1 <+> ppr p2 <+> ppr oe
-  -- ppr (Offset r c)    = text "Offset" <+> ppr r <+> ppr c
-  ppr (NoChange)      = text "NoChange"
-  -- ppr (EndOffset r c) = text "EndOffset" <+> ppr r <+> ppr c
-
-instance Outputable PprOrigin where
-  ppr Original = text "Original"
-  ppr Added    = text "Added"
-
-instance Outputable Ppr where
-  ppr (PprText r c o str) = text "PprText" <+> ppr r <+> ppr c <+> ppr o
-                        <+> text "\"" <> text str <> text "\""
-  ppr (PprAbove so rc erc pps) = hang (text "PprAbove" <+> ppr so <+> ppr rc <+> ppr erc)
-                                           2 (ppr pps)
-  -- ppr (PprOffset ro co pps)       = hang (text "PprOffset" <+> ppr ro <+> ppr co)
-  --                                          2 (ppr pps)
-  ppr (PprDeleted ro co lb l la)     = text "PprDeleted" <+> ppr ro <+> ppr co
-                                           <+> ppr lb <+> ppr l <+> ppr la
-                                         --  <+> ppr n
-
-instance Outputable EndOffset where
-  ppr None               = text "None"
-  ppr (SameLine co)      = text "SameLine" <+> ppr co
-  ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
-
--- ---------------------------------------------------------------------
-
-deriving instance Show Label
-
-instance Outputable (Tree Entry) where
-  ppr (Node label subs) = hang (text "Node") 2 (vcat [ppr label,ppr subs])
-
-instance Outputable Entry where
-  ppr (Entry sspan lay toks) = text "Entry" <+> ppr sspan <+> ppr lay <+> text (show toks)
-  ppr (Deleted sspan pg eg)     = text "Deleted" <+> ppr sspan <+> ppr pg <+> ppr eg
-
-instance Outputable Layout where
-  ppr (Above so p1 p2 oe)   = text "Above" <+> ppr so <+> ppr p1 <+> ppr p2 <+> ppr oe
-  -- ppr (Offset r c)    = text "Offset" <+> ppr r <+> ppr c
-  ppr (NoChange)      = text "NoChange"
-  -- ppr (EndOffset r c) = text "EndOffset" <+> ppr r <+> ppr c
-
-instance Outputable PprOrigin where
-  ppr Original = text "Original"
-  ppr Added    = text "Added"
-
-instance Outputable Ppr where
-  ppr (PprText r c o str) = text "PprText" <+> ppr r <+> ppr c <+> ppr o
-                        <+> text "\"" <> text str <> text "\""
-  ppr (PprAbove so rc erc pps) = hang (text "PprAbove" <+> ppr so <+> ppr rc <+> ppr erc)
-                                           2 (ppr pps)
-  -- ppr (PprOffset ro co pps)       = hang (text "PprOffset" <+> ppr ro <+> ppr co)
-  --                                          2 (ppr pps)
-  ppr (PprDeleted ro co lb l la)     = text "PprDeleted" <+> ppr ro <+> ppr co
-                                           <+> ppr lb <+> ppr l <+> ppr la
-                                         --  <+> ppr n
-
-instance Outputable EndOffset where
-  ppr None               = text "None"
-  ppr (SameLine co)      = text "SameLine" <+> ppr co
-  ppr (FromAlignCol off) = text "FromAlignCol" <+> ppr off
-
--}
 
 -- ---------------------------------------------------------------------
 
@@ -2583,8 +2508,8 @@ s2g ((sr,sc),(er,ec)) = sp
 -- ---------------------------------------------------------------------
 
 instance Allocatable GHC.ParsedSource GhcPosToken where
-  allocTokens = ghcAllocTokens
-  -- allocTokens = ghcAllocTokens'
+  -- allocTokens = ghcAllocTokens
+  allocTokens = ghcAllocTokens'
 
 instance (IsToken (GHC.Located GHC.Token, String)) where
   -- getSpan = ghcGetSpan
@@ -2841,7 +2766,7 @@ ghcAllocTokens' :: GHC.ParsedSource-> [GhcPosToken] -> LayoutTree GhcPosToken
 ghcAllocTokens' parsed toks = r
   where
     parsed' = sanitize parsed
-    ss = allocTokensSrcSpans parsed'
+    ss = allocTokensSrcSpans1 parsed'
     ss1 = (ghead "ghcAllocTokens" ss)
     ss2 = addEndOffsets ss1 toks
     ss3 = decorate ss2 toks
@@ -2852,11 +2777,93 @@ ghcAllocTokens' parsed toks = r
     ss4 = ss3
 #endif
 
+    -- r = error $ "foo=" ++ show toks
     -- r = error $ "foo=" ++ show ss
-    -- r = error $ "foo=" ++ drawTreeCompact (head ss)
-    -- r = error $ "foo=" ++ drawTreeWithToks ss4
+    -- r = error $ "foo.ss=" ++ drawTreeCompact (head ss)
+    -- r = error $ "foo.ss2=" ++ drawTreeWithToks ss2
+    -- r = error $ "foo.ss3=" ++ drawTreeWithToks ss3
+    -- r = error $ "foo.ss4=" ++ drawTreeWithToks ss4
     -- r = undefined
     r = ss4
+
+-- ---------------------------------------------------------------------
+
+allocTokensSrcSpans1 :: Data a => a -> [LayoutTree GhcPosToken]
+allocTokensSrcSpans1 modu = r -- `debug` "allocTokensSrcSpans1 done"
+  where
+    -- everythingStaged :: SYB.Stage -> (r -> r -> r) -> r -> SYB.GenericQ r -> SYB.GenericQ r
+    r = buildTreeStaged SYB.Parser comb [] ([] `SYB.mkQ` srcSpan) modu
+
+    -- comb old new = error $ "allocTokensSrcSpans1: (a,b)=" ++ showGhc (old,map g2s new)
+    comb old new = new ++ old
+
+    srcSpan s@(GHC.RealSrcSpan _) = [Node (Entry (gs2f s) NoChange []) [] ] -- `debug` ("srcSpan:" ++ show (gs2ss s))
+    srcSpan _ = []
+
+    r' = error $ "allocTokensSrcSpans1:r=" ++ show (drawTreeWithToks $ head r)
+
+type R = [LayoutTree GhcPosToken]
+
+buildTreeStaged :: SYB.Stage -> (R -> R -> R) -> R -> SYB.GenericQ R -> SYB.GenericQ R
+--                  stage          k             z     f
+buildTreeStaged stage k z f x
+  | checkItemStage stage x = z
+  | otherwise = case (f x) of
+      [] -> case concat (gmapQ (buildTreeStaged stage k z f) x) of
+        [] -> []
+        [one] -> [one]
+        subs -> if passthrough
+                  then subs'
+                  else [Node (Entry ss NoChange []) subs'] -- `debug` ("subs':" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs'))
+          where
+            passthrough = case subs' of
+              [_] -> True
+              _   -> False
+
+            -- Sanitise the sub trees
+            subs' = realignSubs $ dedupSubs subs
+
+            dedupSubs [] = []
+            dedupSubs [t] = [t]
+            dedupSubs (t1@(Node _ subs1):t2@(Node _ subs2):ts)
+              = if treeStartEnd t1 == treeStartEnd t2
+                  then case (subs1,subs2) of
+                         ([],[]) -> t1 : dedupSubs ts
+                         ([], _) -> t2 : dedupSubs ts
+                         (_, []) -> t1 : dedupSubs ts
+                         _       -> error $ "buildTreeStaged.dedupSubs:got " ++ show (subs1,subs2)
+                  else t1 : dedupSubs (t2:ts)
+
+            realignSubs [] = []
+            realignSubs [t] = [t]
+            realignSubs (t1@(Node (Entry ss1 _ _) subs1):t2@(Node (Entry ss2 _ _) subs2):ts)
+              = if (snd $ f2ss ss1) < (fst $ f2ss ss2)
+                  then t1 : realignSubs (t2:ts)
+                  else if null subs1
+                         then realignSubs (t2:ts)
+                         else error $ "wtf:" ++ show (drawTreeCompact t1,drawTreeCompact t2)
+
+            (s,_) = treeStartEnd $ ghead ("buildTreeStaged:" ++ show subs') subs'
+            (_,e) = treeStartEnd $ glast ("buildTreeStaged:" ++ show subs') subs'
+            ss = (s,e)
+
+      [tree] -> [tree]
+
+
+-- gmapQ :: (forall d. Data d => d -> u) -> a -> [u]
+
+
+{-
+-- | Staged variation of SYB.everything
+-- The stage must be provided to avoid trying to modify elements which
+-- may not be present at all stages of AST processing.
+-- Note: Top-down order
+everythingStaged :: SYB.Stage -> (r -> r -> r) -> r -> SYB.GenericQ r -> SYB.GenericQ r
+everythingStaged stage k z f x
+  | checkItemStage stage x = z
+  | otherwise = foldl k (f x) (gmapQ (everythingStaged stage k z f) x)
+
+-}
 
 -- ---------------------------------------------------------------------
 
@@ -3480,8 +3487,8 @@ addLayout parsed tree = r
     combine ls [] = ls
     -- combine [l] [rt] = trace ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt)) [rt]
     -- combine ls rs = trace ("addLayout.combine2:" ++ show (ls,rs)) []
-    combine [l] [rt] =  [rt] `debug` ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt))
-    combine ls rs = [] `debug` ("addLayout.combine2:" ++ show (ls,rs))
+    combine [l] [rt] =  [rt] -- `debug` ("addLayout.combine1:" ++ show (rootLabel l,rootLabel rt))
+    combine ls rs = [] -- `debug` ("addLayout.combine2:" ++ show (ls,rs))
 
     lgrhs :: GHC.Located (GHC.GRHSs GHC.RdrName) -> [LayoutTree GhcPosToken]
     -- lgrhs (GHC.L l (GHC.GRHSs rhs (GHC.HsValBinds (GHC.ValBindsIn binds sigs)))) = tt

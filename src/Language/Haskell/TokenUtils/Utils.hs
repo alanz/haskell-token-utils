@@ -94,11 +94,13 @@ import Control.Exception
 import Data.List
 import Data.Tree
 
--- import Language.Haskell.TokenUtils.DualTree
--- import Language.Haskell.TokenUtils.Layout
--- import Language.Haskell.TokenUtils.TokenUtils
 import Language.Haskell.TokenUtils.Types
 import qualified Data.Map as Map
+
+import Debug.Trace
+
+debug :: c -> String -> c
+debug = flip trace
 
 -- ---------------------------------------------------------------------
 
@@ -760,7 +762,7 @@ decorate tree toks = go toks tree
         -- b = map (\t -> let f = treeStartEnd t in (getLoc f, getLocEnd f)) subs
 
         doOne :: (IsToken a) => ([a],[LayoutTree a]) -> LayoutTree a -> ([a],[LayoutTree a])
-        doOne (ts1,acc) tree1 = (ts1',acc')
+        doOne (ts1,acc) tree1 = (ts1',acc')  -- `debug` ("decorate.doOne:" ++ show (treeStartEnd tree1))
           where
             ss = treeStartEnd tree1
             (before,middle,after) = splitToksIncComments (getLoc ss,getLocEnd ss) ts1
@@ -780,7 +782,7 @@ decorate tree toks = go toks tree
                   (ss,_) = treeStartEnd (ghead "decorate" subs')
                   (_,se) = treeStartEnd (glast "decorate" trs)
 
-    -- go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
+    go ts tr = error $ "decorate:not processing :" ++ show (ts,tr)
 
 
 -- ---------------------------------------------------------------------
