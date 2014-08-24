@@ -80,7 +80,8 @@ import qualified Data.Tree.Zipper as Z
 import Debug.Trace
 
 debug :: c -> String -> c
-debug = flip trace
+-- debug = flip trace
+debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -2789,19 +2790,26 @@ ghcAllocTokens' parsed toks = r
 -- ---------------------------------------------------------------------
 
 allocTokensSrcSpans1 :: Data a => a -> [LayoutTree GhcPosToken]
-allocTokensSrcSpans1 modu = r -- `debug` "allocTokensSrcSpans1 done"
+allocTokensSrcSpans1 modu = r
   where
     -- everythingStaged :: SYB.Stage -> (r -> r -> r) -> r -> SYB.GenericQ r -> SYB.GenericQ r
     r = buildTreeStaged SYB.Parser comb [] ([] `SYB.mkQ` srcSpan) modu
+    -- r = buildTree2 undefined
 
     -- comb old new = error $ "allocTokensSrcSpans1: (a,b)=" ++ showGhc (old,map g2s new)
     comb old new = new ++ old
 
-    srcSpan s@(GHC.RealSrcSpan _) = [Node (Entry (gs2f s) NoChange []) [] ] -- `debug` ("srcSpan:" ++ show (gs2ss s))
+    srcSpan s@(GHC.RealSrcSpan _) = [Node (Entry (gs2f s) NoChange []) [] ] `debug` ("srcSpan:" ++ show (gs2ss s))
     srcSpan _ = []
 
     r' = error $ "allocTokensSrcSpans1:r=" ++ show (drawTreeWithToks $ head r)
 
+-- ---------------------------------------------------------------------
+
+buildTree2 :: [GHC.SrcSpan] -> [LayoutTree GhcPosToken]
+buildTree2 = error "buildTree2"
+
+-- ---------------------------------------------------------------------
 type R = [LayoutTree GhcPosToken]
 
 buildTreeStaged :: SYB.Stage -> (R -> R -> R) -> R -> SYB.GenericQ R -> SYB.GenericQ R
@@ -2814,7 +2822,7 @@ buildTreeStaged stage k z f x
         [one] -> [one]
         subs -> if passthrough
                   then subs'
-                  else [Node (Entry ss NoChange []) subs'] -- `debug` ("subs':" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs'))
+                  else [Node (Entry ss NoChange []) subs'] `debug` ("subs':" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs'))
           where
             passthrough = case subs' of
               [_] -> True
@@ -2841,7 +2849,9 @@ buildTreeStaged stage k z f x
                   then t1 : realignSubs (t2:ts)
                   else if null subs1
                          then realignSubs (t2:ts)
-                         else error $ "wtf:" ++ show (drawTreeCompact t1,drawTreeCompact t2)
+                         else if f2ss ss1 < f2ss ss2
+                                then t1 : realignSubs (t2:ts)
+                                else t2 : realignSubs (t1:ts)
 
             (s,_) = treeStartEnd $ ghead ("buildTreeStaged:" ++ show subs') subs'
             (_,e) = treeStartEnd $ glast ("buildTreeStaged:" ++ show subs') subs'
@@ -3240,7 +3250,7 @@ addLayout'' parsed tree = Z.toTree zz
 
 
         -- z'' = error "addLayout''.hsexpr:undefined"
-        z'' = error $ "addLayout''.hsexpr:" ++ show (map treeStartEnd subs) ++ (drawTreeWithToks $ Z.tree z')
+        z'' = error $ "addLayout''.hsexpr:" ++ show (map (f2ss . treeStartEnd) subs) ++ (drawTreeWithToks $ Z.tree z')
       put z''
 
       return ex

@@ -63,6 +63,7 @@ spec = do
 
       -- let renamed = fromJust $ GHC.tm_renamed_source t
       -- (SYB.showData SYB.Renamer 0 renamed) `shouldBe` ""
+      -- (SYB.showData SYB.Parser 0 parsed) `shouldBe` ""
 
       (showRichTokenStream' toks) `shouldBe` "-- A simple let statement, to ensure the layout is detected\n\nmodule Layout.LetStmt where\n\nfoo = do\n        let x = 1\n            y = 2\n        x+y\n\n"
 
