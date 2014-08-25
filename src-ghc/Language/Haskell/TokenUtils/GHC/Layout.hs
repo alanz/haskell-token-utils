@@ -3226,7 +3226,9 @@ addLayout'' parsed tree = Z.toTree zz
         toksBinds = gtail ("addLayout''.HsDo" ++ show (l,before,including)) including
 
         -- bindsLayout' = allocList stmts toksBinds allocStmt
-        bindsLayout' = afterTree
+        bindsLayout' = case afterTree of
+          [(Node _ xs)] -> xs
+          _  -> error $ "addLayout''.HsDo:strange afterTree:" ++ (concatMap drawTreeWithToks afterTree)
 
         firstBindTok = ghead "allocLocalBinds" $ dropWhile isWhiteSpaceOrIgnored toksBinds
         p1 = (ghcTokenRow firstBindTok,ghcTokenCol firstBindTok)
@@ -3250,7 +3252,10 @@ addLayout'' parsed tree = Z.toTree zz
 
 
         -- z'' = error "addLayout''.hsexpr:undefined"
-        z'' = error $ "addLayout''.hsexpr:" ++ show (map (f2ss . treeStartEnd) subs) ++ (drawTreeWithToks $ Z.tree z')
+        -- z'' = error $ "addLayout''.hsexpr:" ++ show (map (f2ss . treeStartEnd) subs) ++ (drawTreeWithToks $ Z.tree z')
+        -- z'' = error $ "addLayout''.hsexpr:" ++ show (map drawTreeWithToks subs')
+        -- z'' = error $ "addLayout''.hsexpr:" ++ show (map drawTreeWithToks afterTree)
+        z'' = error $ "addLayout''.hsexpr:" ++ show (map drawTreeWithToks bindsLayout')
       put z''
 
       return ex
