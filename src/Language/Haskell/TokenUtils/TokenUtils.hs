@@ -72,6 +72,7 @@ module Language.Haskell.TokenUtils.TokenUtils
   -- * Exposed for testing only
   , addNewSrcSpanAndToksAfter
   , openZipperToSpan
+  , openZipperToSpanDeep
   , openZipperToSpanAdded
   , retrievePrevLineToks
   , limitPrevToks

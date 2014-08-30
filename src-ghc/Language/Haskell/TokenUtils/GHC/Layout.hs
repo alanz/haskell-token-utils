@@ -80,8 +80,8 @@ import qualified Data.Tree.Zipper as Z
 import Debug.Trace
 
 debug :: c -> String -> c
--- debug = flip trace
-debug c _ = c
+debug = flip trace
+-- debug c _ = c
 
 -- ---------------------------------------------------------------------
 
@@ -2781,11 +2781,12 @@ ghcAllocTokens' parsed toks = r
     -- r = error $ "foo=" ++ show toks
     -- r = error $ "foo=" ++ show ss
     -- r = error $ "foo.ss=" ++ drawTreeCompact (head ss)
+    -- r = error $ "foo.ss1=" ++ drawTreeWithToks ss1
     -- r = error $ "foo.ss2=" ++ drawTreeWithToks ss2
     -- r = error $ "foo.ss3=" ++ drawTreeWithToks ss3
-    -- r = error $ "foo.ss4=" ++ drawTreeWithToks ss4
+    r = error $ "foo.ss4=" ++ drawTreeWithToks ss4
     -- r = undefined
-    r = ss4
+    -- r = ss4
 
 -- ---------------------------------------------------------------------
 
@@ -2793,16 +2794,22 @@ allocTokensSrcSpans1 :: Data a => a -> [LayoutTree GhcPosToken]
 allocTokensSrcSpans1 modu = r
   where
     -- everythingStaged :: SYB.Stage -> (r -> r -> r) -> r -> SYB.GenericQ r -> SYB.GenericQ r
-    r = buildTreeStaged SYB.Parser comb [] ([] `SYB.mkQ` srcSpan) modu
+    r = buildTreeStaged1 SYB.Parser [] ([] `SYB.mkQ` srcSpan) modu
+    spans = everythingStaged SYB.Parser (++) [] ([] `SYB.mkQ` srcSpanOnly) modu
     -- r = buildTree2 undefined
-
-    -- comb old new = error $ "allocTokensSrcSpans1: (a,b)=" ++ showGhc (old,map g2s new)
-    comb old new = new ++ old
 
     srcSpan s@(GHC.RealSrcSpan _) = [Node (Entry (gs2f s) NoChange []) [] ] `debug` ("srcSpan:" ++ show (gs2ss s))
     srcSpan _ = []
 
-    r' = error $ "allocTokensSrcSpans1:r=" ++ show (drawTreeWithToks $ head r)
+    srcSpanOnly s@(GHC.RealSrcSpan _) = [s] --  `debug` ("srcSpan:" ++ show (gs2ss s))
+    srcSpanOnly _ = []
+
+    dedup [] = []
+    dedup [x] = [x]
+    dedup (a:b:xs) = if a == b then    dedup (b:xs)
+                               else a:(dedup (b:xs))
+
+    r' = error $ "allocTokensSrcSpans1:r=" ++ show (map gs2ss $ dedup $ spans)
 
 -- ---------------------------------------------------------------------
 
@@ -2812,12 +2819,68 @@ buildTree2 = error "buildTree2"
 -- ---------------------------------------------------------------------
 type R = [LayoutTree GhcPosToken]
 
-buildTreeStaged :: SYB.Stage -> (R -> R -> R) -> R -> SYB.GenericQ R -> SYB.GenericQ R
---                  stage          k             z     f
-buildTreeStaged stage k z f x
+buildTreeStaged1 :: SYB.Stage -> R -> SYB.GenericQ R -> SYB.GenericQ R
+--                  stage       z     f
+buildTreeStaged1 stage z f x
   | checkItemStage stage x = z
   | otherwise = case (f x) of
-      [] -> case concat (gmapQ (buildTreeStaged stage k z f) x) of
+      [] -> case concat (gmapQ (buildTreeStaged1 stage z f) x) of
+        [] -> []
+        [one] -> [one]
+        subs -> if passthrough
+                  then subs
+                  -- else [Node (Entry ss NoChange []) subs] `debug` ("subs:" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs))
+                  -- then subs'
+                  else [Node (Entry ss NoChange []) subs'] `debug` ("subs':" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs'))
+          where
+            passthrough = case subs' of
+              [t] -> False
+              -- [t] -> True `debug` ("subs 1 " ++ show (f2ss $ treeStartEnd t))
+              _   -> False
+
+            -- Sanitise the sub trees
+            -- subs' = realignSubs $ dedupSubs subs
+            subs' = dedupSubs subs
+
+            dedupSubs [] = []
+            dedupSubs [t] = [t]
+            dedupSubs (t1@(Node _ subs1):t2@(Node _ subs2):ts)
+              = if treeStartEnd t1 == treeStartEnd t2
+                  then case (subs1,subs2) of
+                         ([],[]) -> t1 : dedupSubs ts
+                         ([], _) -> t2 : dedupSubs ts
+                         (_, []) -> t1 : dedupSubs ts
+                         _       -> error $ "buildTreeStaged1.dedupSubs:got " ++ show (subs1,subs2)
+                  else t1 : dedupSubs (t2:ts)
+
+            realignSubs [] = []
+            realignSubs [t] = [t]
+            realignSubs (t1@(Node (Entry ss1 _ _) subs1):t2@(Node (Entry ss2 _ _) subs2):ts)
+              = if (snd $ f2ss ss1) < (fst $ f2ss ss2)
+                  then t1 : realignSubs (t2:ts)
+                  else if null subs1
+                         then realignSubs (t2:ts)
+                         else if f2ss ss1 < f2ss ss2
+                                then t1 : realignSubs (t2:ts)
+                                else t2 : realignSubs (t1:ts)
+
+            (s,_) = treeStartEnd $ ghead ("buildTreeStaged1:" ++ show subs') subs'
+            (_,e) = treeStartEnd $ glast ("buildTreeStaged1:" ++ show subs') subs'
+            -- (s,_) = treeStartEnd $ ghead ("buildTreeStaged1:" ++ show subs') subs
+            -- (_,e) = treeStartEnd $ glast ("buildTreeStaged1:" ++ show subs') subs
+            ss = (s,e)
+
+      [tree] -> [tree]
+      ts     -> error $ "buildTreeStaged1:unexpected val:" ++ show ts
+
+-- ---------------------------------------------------------------------
+
+buildTreeStaged :: SYB.Stage -> R -> SYB.GenericQ R -> SYB.GenericQ R
+--                  stage       z     f
+buildTreeStaged stage z f x
+  | checkItemStage stage x = z
+  | otherwise = case (f x) of
+      [] -> case concat (gmapQ (buildTreeStaged stage z f) x) of
         [] -> []
         [one] -> [one]
         subs -> if passthrough
@@ -2825,7 +2888,7 @@ buildTreeStaged stage k z f x
                   else [Node (Entry ss NoChange []) subs'] `debug` ("subs':" ++ show (f2ss ss,map (f2ss .treeStartEnd) subs'))
           where
             passthrough = case subs' of
-              [_] -> True
+              [t] -> True `debug` ("subs 1 " ++ show (f2ss $ treeStartEnd t))
               _   -> False
 
             -- Sanitise the sub trees
@@ -2858,7 +2921,7 @@ buildTreeStaged stage k z f x
             ss = (s,e)
 
       [tree] -> [tree]
-
+      ts     -> error $ "buildTreeStaged:unexpected val:" ++ show ts
 
 -- gmapQ :: (forall d. Data d => d -> u) -> a -> [u]
 
@@ -3212,12 +3275,12 @@ addLayout'' parsed tree = Z.toTree zz
       ztree <- get
       let
 
-        z = openZipperToSpan (gs2f l) ztree
+        z = openZipperToSpanDeep (gs2f l) ztree
         z' = gfromJust "addLayout.HsDo" $ Z.parent z
         (Node e subs) = Z.tree z
         (beforeTree,doTree,afterTree) = case subs of
           (bTree:dTree:aTree) -> (bTree,dTree,aTree)
-          _ -> error $ "addLayout.hsexpr:unexpected tree found:" ++ show subs
+          _ -> error $ "addLayout.hsexpr:unexpected tree found:" ++ (concatMap drawTreeWithToks subs)
 
         toksBinds' = retrieveTokensInterim $ Z.tree z
 
