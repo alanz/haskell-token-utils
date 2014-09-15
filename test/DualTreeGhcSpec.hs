@@ -118,6 +118,8 @@ spec = do
       (t,toks) <- parsedFileGhc "./test/testdata/Renaming/LayoutIn2.hs"
       let parsed = GHC.pm_parsed_source $ GHC.tm_parsed_module t
 
+      -- (SYB.showData SYB.Parser 0 parsed) `shouldBe` ""
+
       (showRichTokenStream' toks) `shouldBe` "module LayoutIn2 where\n\n--Layout rule applies after 'where','let','do' and 'of'\n\n--In this Example: rename 'list' to 'ls'.\n\nsilly :: [Int] -> Int\nsilly list = case list of  (1:xs) -> 1\n--There is a comment\n                           (2:xs)\n                             | x < 10    -> 4  where  x = last xs\n                           otherwise -> 12\n\n"
 
       let origSource = (showRichTokenStream' toks)
