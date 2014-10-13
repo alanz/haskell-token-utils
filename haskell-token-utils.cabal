@@ -1,5 +1,5 @@
 name:                haskell-token-utils
-version:             0.0.0.5
+version:             0.0.0.6
 synopsis:            Utilities to tie up tokens to an AST
 description:         This library is currently experimental.
                      .
@@ -102,7 +102,7 @@ test-suite spec
     , ghc-mod >= 4.1.0
 
     -- For testing the haskell-src-exts one
-    , haskell-src-exts >= 1.15
+    , haskell-src-exts >= 1.16
     , uniplate
 
 source-repository head

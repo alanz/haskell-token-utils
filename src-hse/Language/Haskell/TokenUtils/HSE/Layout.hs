@@ -585,13 +585,14 @@ allocTokens' modu = r
         -- trace ("decl:FunBind" ++ show (ss, map treeStartEnd subs))
         [makeGroup subs]
 
-    decl (PatBind   (SrcSpanInfo _  _) _    _     _    Nothing) vv = vv
-    decl (PatBind l@(SrcSpanInfo _ss _) pat mtyp rhs (Just bd@(BDecls (SrcSpanInfo _bs _) _))) vv =
+    --  PatBind      l (Pat l) (Rhs l) {-where-} (Maybe (Binds l))
+    decl (PatBind   (SrcSpanInfo _  _) _        _    Nothing) vv = vv
+    decl (PatBind l@(SrcSpanInfo _ss _) pat rhs (Just bd@(BDecls (SrcSpanInfo _bs _) _))) vv =
       case srcInfoPoints l of
         (wherePos:_) ->
           let
             treePat  = allocTokens' pat
-            treeType = allocTokens' mtyp
+            -- treeType = allocTokens' mtyp
             treeRhs  = allocTokens' rhs
             treeWhereClause = [makeGroup (treeWhere ++ treeDecls)]
               where
@@ -603,7 +604,7 @@ allocTokens' modu = r
             (whereStart,_whereEnd) = ss2s wherePos
             io = FromAlignCol whereStart
             eo = None -- will be calculated later FromAlignCol (0,0)
-            subs = treePat ++ treeType ++ treeRhs ++ treeWhereClause
+            subs = treePat ++ treeRhs ++ treeWhereClause
           in
              -- trace ("decl:patBind:" ++ show (ss))
              [makeGroup subs]
